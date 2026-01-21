@@ -97,7 +97,7 @@ export default function AdminDashboard() {
   }, [selectedEvent?.id])
 
   const copyEventLink = (eventId: string) => {
-    const link = `${window.location.origin}/book/${eventId}`
+    const link = `${window.location.origin}/book?eventId=${eventId}`
     navigator.clipboard.writeText(link)
     toast.success('Link copied to clipboard!')
   }

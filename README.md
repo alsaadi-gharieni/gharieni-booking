@@ -26,7 +26,12 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env.local` file in the root directory:
+Copy the example environment file:
+```bash
+cp .env.local.example .env.local
+```
+
+Edit `.env.local` and add your Firebase configuration:
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
@@ -71,6 +76,13 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+**Note**: This project uses static export (`output: 'export'`) for Firebase Hosting. During development, `npm run dev` works normally. To preview the built static site locally, use:
+
+```bash
+npm run build
+npm run preview
+```
+
 ## Usage
 
 ### Admin Flow
@@ -89,10 +101,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### User Flow
 
-1. Click on the shareable link (format: `/book/[eventId]`)
+1. Click on the shareable link (format: `/book?eventId=abc123`)
 2. View event details and company logo
-3. Select an available time slot
-4. Fill in name, email, and optional note
+3. Select a date and available time slot
+4. Fill in name, email, phone number, and optional note
 5. Confirm booking
 
 ## Project Structure
@@ -120,11 +132,24 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - **React Hot Toast**: Notifications
 - **date-fns**: Date formatting
 
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions on deploying to Firebase Hosting.
+
+Quick deployment:
+```bash
+# Set environment variables (or use .env.production)
+export NEXT_PUBLIC_FIREBASE_API_KEY="your_api_key"
+# ... set other variables
+
+# Build and deploy
+npm run build
+firebase deploy --only hosting
+```
+
 ## Future Enhancements
 
-- Add authentication for admin access
 - Email notifications for bookings
 - Calendar integration
-- Multiple date support for events
-- Booking cancellation
-- Admin ability to delete bookings
+- Export bookings to CSV
+- Email reminders for upcoming bookings

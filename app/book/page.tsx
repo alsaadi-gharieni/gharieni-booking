@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { getEventById, getBookingBySlot, createBooking, checkExistingBooking } from '@/lib/firestore'
 import { Event } from '@/types'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
-export default function BookEvent() {
-  const params = useParams()
-  const eventId = params.eventId as string
+function BookEventContent() {
+  const searchParams = useSearchParams()
+  // Get eventId from query parameter (e.g., /book?eventId=abc123)
+  const eventId = searchParams?.get('eventId') || ''
   
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -22,7 +23,7 @@ export default function BookEvent() {
     note: '',
   })
   const [submitting, setSubmitting] = useState(false)
-  const [bookedSlots, setBookedSlots] = useState<Map<string, Set<string>>>(new Map()) // Map<date, Set<slotTime>>
+  const [bookedSlots, setBookedSlots] = useState<Map<string, Set<string>>>(new Map())
 
   useEffect(() => {
     if (eventId) {
@@ -39,7 +40,6 @@ export default function BookEvent() {
       }
       setEvent(eventData)
       
-      // Check which slots are already booked for each date
       const bookedMap = new Map<string, Set<string>>()
       for (const date of eventData.eventDates) {
         const bookedForDate = new Set<string>()
@@ -73,14 +73,12 @@ export default function BookEvent() {
       return
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(bookingForm.email)) {
       toast.error('Please enter a valid email address')
       return
     }
 
-    // Validate phone format (basic validation - at least 10 digits)
     const phoneRegex = /^[\d\s\-\+\(\)]+$/
     const phoneDigits = bookingForm.phone.replace(/\D/g, '')
     if (!phoneRegex.test(bookingForm.phone) || phoneDigits.length < 10) {
@@ -91,12 +89,7 @@ export default function BookEvent() {
     setSubmitting(true)
 
     try {
-      // Double-check slot availability
-      const existingBooking = await getBookingBySlot(
-        eventId,
-        selectedDate,
-        selectedSlot
-      )
+      const existingBooking = await getBookingBySlot(eventId, selectedDate, selectedSlot)
       
       if (existingBooking) {
         toast.error('This slot has already been booked. Please select another time.')
@@ -104,7 +97,6 @@ export default function BookEvent() {
         return
       }
 
-      // Check if email or phone already exists for this event
       const existingEmailOrPhone = await checkExistingBooking(
         eventId,
         bookingForm.email.trim(),
@@ -126,7 +118,6 @@ export default function BookEvent() {
         phone: bookingForm.phone.trim(),
       }
       
-      // Only include note if it has a value
       if (bookingForm.note && bookingForm.note.trim() !== '') {
         bookingData.note = bookingForm.note.trim()
       }
@@ -134,11 +125,7 @@ export default function BookEvent() {
       await createBooking(bookingData)
 
       toast.success('Booking confirmed!')
-      
-      // Reload event to get updated availability
       await loadEvent()
-      
-      // Reset form
       setSelectedSlot(null)
       setSelectedDate(null)
       setBookingForm({ name: '', email: '', phone: '', note: '' })
@@ -169,7 +156,6 @@ export default function BookEvent() {
     )
   }
 
-  // Check if event is disabled
   if (event.enabled === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -178,17 +164,9 @@ export default function BookEvent() {
           <p className="text-gray-800 mb-4">This event is currently disabled and not accepting new bookings.</p>
           <div className="mb-6 flex justify-center">
             {event.companyLogo ? (
-              <img
-                src={event.companyLogo}
-                alt="Company Logo"
-                className="h-20 object-contain"
-              />
+              <img src={event.companyLogo} alt="Company Logo" className="h-20 object-contain" />
             ) : (
-              <img
-                src="/images/logo-dark.png"
-                alt="Logo"
-                className="h-20 object-contain"
-              />
+              <img src="/images/logo-dark.png" alt="Logo" className="h-20 object-contain" />
             )}
           </div>
         </div>
@@ -209,21 +187,12 @@ export default function BookEvent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Event Header */}
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
           <div className="mb-6 flex justify-center">
             {event.companyLogo ? (
-              <img
-                src={event.companyLogo}
-                alt="Company Logo"
-                className="h-20 object-contain"
-              />
+              <img src={event.companyLogo} alt="Company Logo" className="h-20 object-contain" />
             ) : (
-              <img
-                src="/images/logo-dark.png"
-                alt="Logo"
-                className="h-20 object-contain"
-              />
+              <img src="/images/logo-dark.png" alt="Logo" className="h-20 object-contain" />
             )}
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4 text-center">
@@ -250,11 +219,9 @@ export default function BookEvent() {
           </div>
         </div>
 
-        {/* Booking Form */}
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Book Your Slot</h2>
           
-          {/* Date Selection */}
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-900 mb-4">
               Select a Date *
@@ -296,7 +263,6 @@ export default function BookEvent() {
             </div>
           </div>
 
-          {/* Time Slot Selection */}
           {selectedDate && (
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-900 mb-4">
@@ -342,7 +308,6 @@ export default function BookEvent() {
             </div>
           )}
 
-          {/* Booking Details Form */}
           {selectedDate && selectedSlot && !isSlotBooked(selectedDate, selectedSlot) && (
             <form onSubmit={handleBooking} className="space-y-6">
               <div>
@@ -430,5 +395,17 @@ export default function BookEvent() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function BookEventPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-xl text-gray-800">Loading...</div>
+      </div>
+    }>
+      <BookEventContent />
+    </Suspense>
   )
 }
