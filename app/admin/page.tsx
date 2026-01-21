@@ -50,6 +50,11 @@ export default function AdminDashboard() {
       setEvents(eventsData)
     } catch (error) {
       console.error('Error loading events:', error)
+      toast.error('Failed to load events. Check console for details.')
+      // Check if it's a Firebase config error
+      if (error instanceof Error && error.message.includes('Firebase')) {
+        toast.error('Firebase configuration error. Please check environment variables.')
+      }
     } finally {
       setLoading(false)
     }

@@ -51,9 +51,33 @@ Since Firebase Hosting serves static files, environment variables need to be set
 1. Set environment variables in your CI/CD pipeline or local machine before building
 2. Use Firebase Functions if you need server-side environment variables
 
-**Option 2: Build with Environment Variables**
+**Option 2: Build with Environment Variables (Recommended)**
 
-Before deploying, set your environment variables and build:
+Create a `.env.local` file in your project root with your Firebase configuration:
+
+```bash
+# Create .env.local file
+cat > .env.local << EOF
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+EOF
+```
+
+Then use the deployment script:
+
+```bash
+# Make script executable (first time only)
+chmod +x deploy.sh
+
+# Run deployment script
+./deploy.sh
+```
+
+Or manually:
 
 ```bash
 # Set environment variables (Linux/Mac)
