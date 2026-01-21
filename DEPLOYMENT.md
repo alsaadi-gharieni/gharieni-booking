@@ -192,50 +192,46 @@ Run it:
 
 ## CI/CD Integration
 
-### GitHub Actions Example
+### GitHub Actions Setup
 
-Create `.github/workflows/deploy.yml`:
+The project includes GitHub Actions workflows for automatic deployment:
 
-```yaml
-name: Deploy to Firebase
+1. **`.github/workflows/firebase-hosting-merge.yml`** - Deploys to production on merge to `main`
+2. **`.github/workflows/firebase-hosting-pull-request.yml`** - Creates preview deployments for pull requests
 
-on:
-  push:
-    branches:
-      - main
+#### Setting Up GitHub Secrets
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      
-      - name: Install dependencies
-        run: npm install
-      
-      - name: Build
-        env:
-          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-        run: npm run build
-      
-      - name: Deploy to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          channelId: live
-          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
-```
+For the workflows to work, you need to add the following secrets to your GitHub repository:
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** > **Secrets and variables** > **Actions**
+3. Click **New repository secret** and add each of these:
+
+   - `NEXT_PUBLIC_FIREBASE_API_KEY` - Your Firebase API Key
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` - Your Firebase Auth Domain (e.g., `project-id.firebaseapp.com`)
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID` - Your Firebase Project ID
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` - Your Firebase Storage Bucket (e.g., `project-id.appspot.com`)
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` - Your Firebase Messaging Sender ID
+   - `NEXT_PUBLIC_FIREBASE_APP_ID` - Your Firebase App ID
+   - `FIREBASE_SERVICE_ACCOUNT_GHARIENI_BOOKING` - Your Firebase Service Account JSON (already set by Firebase CLI)
+
+#### Getting Firebase Configuration Values
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Go to **Project Settings** (gear icon) > **General** tab
+4. Scroll down to **Your apps** section
+5. If you don't have a web app, click **Add app** > **Web** (</> icon)
+6. Copy the configuration values from the `firebaseConfig` object
+
+#### Workflow Details
+
+The workflows are already configured and will:
+- Install dependencies
+- Build the Next.js app with environment variables from GitHub Secrets
+- Deploy to Firebase Hosting automatically
+
+**Note**: The workflows use the secrets you configure in GitHub, so make sure all required secrets are set before pushing to trigger a deployment.
 
 ## Environment Variables Management
 
