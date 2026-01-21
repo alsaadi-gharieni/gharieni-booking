@@ -1,0 +1,419 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { getAllEvents, getBookingsByEventId, toggleEventEnabled, deleteEvent, deleteBooking } from '@/lib/firestore'
+import { Event, Booking } from '@/types'
+import { format } from 'date-fns'
+import toast from 'react-hot-toast'
+import { isAuthenticated, logout, getAdminEmail } from '@/lib/auth'
+
+export default function AdminDashboard() {
+  const router = useRouter()
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    // Check authentication
+    if (!isAuthenticated()) {
+      router.push('/admin/login')
+      return
+    }
+    setAuthChecked(true)
+    loadEvents()
+  }, [router])
+
+  useEffect(() => {
+    // Auto-select newly created event
+    if (typeof window !== 'undefined' && events.length > 0) {
+      const params = new URLSearchParams(window.location.search)
+      const createdEventId = params.get('created')
+      if (createdEventId && !selectedEvent) {
+        const event = events.find(e => e.id === createdEventId)
+        if (event) {
+          handleEventSelect(event)
+          toast.success('Event created successfully!')
+          window.history.replaceState({}, '', '/admin')
+        }
+      }
+    }
+  }, [events])
+
+  const loadEvents = async () => {
+    try {
+      const eventsData = await getAllEvents()
+      setEvents(eventsData)
+    } catch (error) {
+      console.error('Error loading events:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBookings = async (eventId: string) => {
+    try {
+      console.log('Loading bookings for event:', eventId)
+      const bookingsData = await getBookingsByEventId(eventId)
+      console.log('Bookings loaded:', bookingsData)
+      setBookings(bookingsData)
+      setLastRefresh(new Date())
+    } catch (error) {
+      console.error('Error loading bookings:', error)
+      toast.error('Failed to load bookings. Check console for details.')
+    }
+  }
+
+  const handleEventSelect = (event: Event) => {
+    setSelectedEvent(event)
+    loadBookings(event.id)
+  }
+
+  // Refresh bookings for selected event
+  const refreshBookings = () => {
+    if (selectedEvent) {
+      loadBookings(selectedEvent.id)
+    }
+  }
+
+  // Auto-refresh bookings every 5 seconds
+  useEffect(() => {
+    if (!selectedEvent) return
+    
+    // Load immediately
+    loadBookings(selectedEvent.id)
+    
+    // Then refresh every 5 seconds
+    const interval = setInterval(() => {
+      loadBookings(selectedEvent.id)
+    }, 5000) // Refresh every 5 seconds
+    
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEvent?.id])
+
+  const copyEventLink = (eventId: string) => {
+    const link = `${window.location.origin}/book/${eventId}`
+    navigator.clipboard.writeText(link)
+    toast.success('Link copied to clipboard!')
+  }
+
+  const handleToggleEvent = async (eventId: string, currentStatus: boolean) => {
+    try {
+      await toggleEventEnabled(eventId, !currentStatus)
+      toast.success(`Event ${!currentStatus ? 'enabled' : 'disabled'} successfully`)
+      await loadEvents()
+      // Reload selected event if it's the one being toggled
+      if (selectedEvent?.id === eventId) {
+        const updatedEvent = events.find(e => e.id === eventId)
+        if (updatedEvent) {
+          setSelectedEvent({ ...updatedEvent, enabled: !currentStatus })
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling event:', error)
+      toast.error('Failed to update event status')
+    }
+  }
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      return
+    }
+    
+    try {
+      await deleteEvent(eventId)
+      toast.success('Event deleted successfully')
+      await loadEvents()
+      if (selectedEvent?.id === eventId) {
+        setSelectedEvent(null)
+        setBookings([])
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error)
+      toast.error('Failed to delete event')
+    }
+  }
+
+  const handleCancelBooking = async (bookingId: string) => {
+    if (!confirm('Are you sure you want to cancel this booking?')) {
+      return
+    }
+    
+    try {
+      await deleteBooking(bookingId)
+      toast.success('Booking cancelled successfully')
+      if (selectedEvent) {
+        await loadBookings(selectedEvent.id)
+      }
+    } catch (error) {
+      console.error('Error cancelling booking:', error)
+      toast.error('Failed to cancel booking')
+    }
+  }
+
+  const handleLogout = () => {
+    logout()
+    toast.success('Logged out successfully')
+    router.push('/admin/login')
+  }
+
+  if (!authChecked || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <img
+              src="/images/logo-dark.png"
+              alt="Logo"
+              className="h-12 object-contain"
+            />
+            {/* <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1> */}
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              {getAdminEmail()}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+            >
+              Logout
+            </button>
+            <Link
+              href="/admin/create"
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Create New Event
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Events List */}
+          <div className="lg:col-span-1">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Events</h2>
+            <div className="space-y-3">
+              {events.length === 0 ? (
+                <p className="text-gray-800">No events yet. Create your first event!</p>
+              ) : (
+                events.map((event) => (
+                  <div
+                    key={event.id}
+                    className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                      selectedEvent?.id === event.id
+                        ? 'bg-indigo-50 border-indigo-500'
+                        : 'bg-white border-gray-200 hover:border-indigo-300'
+                    }`}
+                    onClick={() => handleEventSelect(event)}
+                  >
+                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                    <p className="text-sm text-gray-800 mt-1 line-clamp-2">
+                      {event.description}
+                    </p>
+                    <p className="text-xs text-gray-700 mt-2">
+                      {event.eventDates.length} date{event.eventDates.length !== 1 ? 's' : ''}: {event.eventDates.slice(0, 2).map(d => format(new Date(d), 'MMM dd')).join(', ')}{event.eventDates.length > 2 ? '...' : ''}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`text-xs px-2 py-1 rounded ${event.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {event.enabled !== false ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          copyEventLink(event.id)
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-800"
+                      >
+                        Copy Link
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleEvent(event.id, event.enabled !== false)
+                        }}
+                        className="text-xs text-gray-600 hover:text-gray-800"
+                      >
+                        {event.enabled !== false ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteEvent(event.id)
+                        }}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Bookings and Availability */}
+          <div className="lg:col-span-2">
+            {selectedEvent ? (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        Bookings for: {selectedEvent.title}
+                      </h2>
+                      <span className={`text-xs px-2 py-1 rounded ${selectedEvent.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {selectedEvent.enabled !== false ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    {lastRefresh && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Last updated: {format(lastRefresh, 'HH:mm:ss')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleEvent(selectedEvent.id, selectedEvent.enabled !== false)}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm ${
+                        selectedEvent.enabled !== false
+                          ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      {selectedEvent.enabled !== false ? 'Disable Event' : 'Enable Event'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteEvent(selectedEvent.id)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                    >
+                      Delete Event
+                    </button>
+                    <button
+                      onClick={refreshBookings}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Availability Overview */}
+                <div className="bg-white rounded-lg p-6 mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Availability by Date</h3>
+                  <div className="space-y-6">
+                    {selectedEvent.eventDates.map((date) => {
+                      const dateBookings = bookings.filter(b => b.date === date)
+                      const bookedSlotsForDate = new Set(dateBookings.map(b => b.slotTime))
+                      
+                      return (
+                        <div key={date}>
+                          <h4 className="font-medium text-gray-900 mb-3">
+                            {format(new Date(date), 'EEEE, MMMM dd, yyyy')}
+                          </h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {selectedEvent.availableSlots.map((slot) => {
+                              const isBooked = bookedSlotsForDate.has(slot)
+                              return (
+                                <div
+                                  key={`${date}-${slot}`}
+                                  className={`p-3 rounded border text-center ${
+                                    isBooked
+                                      ? 'bg-red-50 border-red-200'
+                                      : 'bg-green-50 border-green-200'
+                                  }`}
+                                >
+                                  <div className="font-medium text-gray-900">{slot}</div>
+                                  <div className={`text-xs mt-1 ${isBooked ? 'text-red-800' : 'text-green-800'}`}>
+                                    {isBooked ? 'Booked' : 'Available'}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Bookings List */}
+                <div className="bg-white rounded-lg p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-gray-900">All Bookings</h3>
+                    <span className="text-sm text-gray-600">
+                      ({bookings.length} booking{bookings.length !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                  {bookings.length === 0 ? (
+                    <div>
+                      <p className="text-gray-800">No bookings yet.</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Event ID: {selectedEvent.id}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {bookings.map((booking) => (
+                        <div
+                          key={booking.id}
+                          className="border border-gray-200 rounded-lg p-4"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900">
+                                {booking.name}
+                              </div>
+                              <div className="text-sm text-gray-800 mt-1">
+                                {booking.email}
+                              </div>
+                              <div className="text-sm text-gray-800 mt-1">
+                                Phone: {booking.phone}
+                              </div>
+                              <div className="text-sm text-gray-700 mt-1">
+                                {format(new Date(booking.date), 'MMM dd, yyyy')} at {booking.slotTime}
+                              </div>
+                              {booking.note && (
+                                <div className="text-sm text-gray-800 mt-2 italic">
+                                  "{booking.note}"
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleCancelBooking(booking.id)}
+                              className="ml-4 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg p-12 text-center">
+                <p className="text-gray-800">Select an event to view bookings and availability</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
