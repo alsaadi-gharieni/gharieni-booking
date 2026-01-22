@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getEventById, getBookingBySlot, createBooking, checkExistingBooking } from '@/lib/firestore'
+import { getEventById, getBookingBySlot, createBooking, checkExistingBooking, getBookingsByEventId } from '@/lib/firestore'
 import { Event } from '@/types'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -36,21 +36,29 @@ function BookEventContent() {
       const eventData = await getEventById(eventId)
       if (!eventData) {
         toast.error('Event not found')
+        setLoading(false)
         return
       }
       setEvent(eventData)
       
+      // ✅ Fetch ALL bookings for this event in ONE query (much faster!)
+      const allBookings = await getBookingsByEventId(eventId)
+      
+      // ✅ Process bookings client-side to build the booked slots map
       const bookedMap = new Map<string, Set<string>>()
-      for (const date of eventData.eventDates) {
-        const bookedForDate = new Set<string>()
-        for (const slot of eventData.availableSlots) {
-          const existingBooking = await getBookingBySlot(eventId, date, slot)
-          if (existingBooking) {
-            bookedForDate.add(slot)
-          }
-        }
-        bookedMap.set(date, bookedForDate)
-      }
+      
+      // Initialize map for all dates
+      eventData.eventDates.forEach(date => {
+        bookedMap.set(date, new Set<string>())
+      })
+      
+      // Mark booked slots
+      allBookings.forEach(booking => {
+        const bookedForDate = bookedMap.get(booking.date) || new Set<string>()
+        bookedForDate.add(booking.slotTime)
+        bookedMap.set(booking.date, bookedForDate)
+      })
+      
       setBookedSlots(bookedMap)
     } catch (error) {
       console.error('Error loading event:', error)

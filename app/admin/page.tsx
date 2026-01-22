@@ -107,10 +107,20 @@ export default function AdminDashboard() {
     toast.success('Link copied to clipboard!')
   }
 
-  const handleToggleEvent = async (eventId: string, currentStatus: boolean) => {
+  const handleToggleEvent = async (eventId: string, currentStatus: boolean, eventTitle: string) => {
+    const action = !currentStatus ? 'enable' : 'disable'
+    const confirmed = window.confirm(
+      `Are you sure you want to ${action} "${eventTitle}"?\n\n` +
+      `${action === 'disable' ? 'Users will not be able to book slots for this event.' : 'Users will be able to book slots for this event.'}`
+    )
+    
+    if (!confirmed) {
+      return
+    }
+    
     try {
       await toggleEventEnabled(eventId, !currentStatus)
-      toast.success(`Event ${!currentStatus ? 'enabled' : 'disabled'} successfully`)
+      toast.success(`Event ${action}d successfully`)
       await loadEvents()
       // Reload selected event if it's the one being toggled
       if (selectedEvent?.id === eventId) {
@@ -125,8 +135,25 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+  const handleDeleteEvent = async (eventId: string, eventTitle: string) => {
+    const confirmed = window.confirm(
+      `⚠️ WARNING: Delete Event\n\n` +
+      `Are you sure you want to delete "${eventTitle}"?\n\n` +
+      `This will permanently delete:\n` +
+      `• The event and all its data\n` +
+      `• All associated bookings\n\n` +
+      `This action CANNOT be undone!\n\n` +
+      `Type "DELETE" to confirm:`
+    )
+    
+    if (!confirmed) {
+      return
+    }
+    
+    // Double confirmation
+    const doubleConfirm = window.prompt('Type "DELETE" to confirm deletion:')
+    if (doubleConfirm !== 'DELETE') {
+      toast.error('Deletion cancelled. You must type "DELETE" to confirm.')
       return
     }
     
@@ -144,8 +171,15 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleCancelBooking = async (bookingId: string) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
+  const handleCancelBooking = async (bookingId: string, bookingName: string) => {
+    const confirmed = window.confirm(
+      `Cancel Booking\n\n` +
+      `Are you sure you want to cancel the booking for "${bookingName}"?\n\n` +
+      `This will free up the time slot for other users.\n\n` +
+      `This action cannot be undone.`
+    )
+    
+    if (!confirmed) {
       return
     }
     
@@ -217,14 +251,19 @@ export default function AdminDashboard() {
                 events.map((event) => (
                   <div
                     key={event.id}
-                    className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                    className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
                       selectedEvent?.id === event.id
-                        ? 'bg-indigo-50 border-indigo-500'
-                        : 'bg-white border-gray-200 hover:border-indigo-300'
+                        ? 'bg-indigo-50 border-indigo-500 shadow-md'
+                        : 'bg-white border-gray-200 hover:border-indigo-400 hover:shadow-lg hover:scale-[1.02]'
                     }`}
                     onClick={() => handleEventSelect(event)}
                   >
-                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900 flex-1">{event.title}</h3>
+                      <span className="text-indigo-600 text-xs font-medium ml-2">
+                        👆 Click to view
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-800 mt-1 line-clamp-2">
                       {event.description}
                     </p>
@@ -232,37 +271,47 @@ export default function AdminDashboard() {
                       {event.eventDates.length} date{event.eventDates.length !== 1 ? 's' : ''}: {event.eventDates.slice(0, 2).map(d => format(new Date(d), 'MMM dd')).join(', ')}{event.eventDates.length > 2 ? '...' : ''}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className={`text-xs px-2 py-1 rounded ${event.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${event.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {event.enabled !== false ? 'Enabled' : 'Disabled'}
                       </span>
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    
+                    {/* Copy Link - Separated from action buttons */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           copyEventLink(event.id)
                         }}
-                        className="text-xs text-indigo-600 hover:text-indigo-800"
+                        className="w-full px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md text-xs font-medium transition-colors"
                       >
-                        Copy Link
+                        📋 Copy Booking Link
+                      </button>
+                    </div>
+                    
+                    {/* Action Buttons - Separated with more spacing */}
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleEvent(event.id, event.enabled !== false, event.title)
+                        }}
+                        className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          event.enabled !== false
+                            ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+                            : 'bg-green-50 text-green-700 hover:bg-green-100'
+                        }`}
+                      >
+                        {event.enabled !== false ? '⏸ Disable' : '▶ Enable'}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleToggleEvent(event.id, event.enabled !== false)
+                          handleDeleteEvent(event.id, event.title)
                         }}
-                        className="text-xs text-gray-600 hover:text-gray-800"
+                        className="flex-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-xs font-medium transition-colors"
                       >
-                        {event.enabled !== false ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteEvent(event.id)
-                        }}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Delete
+                        🗑 Delete
                       </button>
                     </div>
                   </div>
@@ -275,44 +324,43 @@ export default function AdminDashboard() {
           <div className="lg:col-span-2">
             {selectedEvent ? (
               <div>
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Bookings for: {selectedEvent.title}
-                      </h2>
-                      <span className={`text-xs px-2 py-1 rounded ${selectedEvent.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {selectedEvent.enabled !== false ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </div>
-                    {lastRefresh && (
-                      <p className="text-xs text-gray-600 mt-1">
-                        Last updated: {format(lastRefresh, 'HH:mm:ss')}
-                      </p>
-                    )}
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Bookings for: {selectedEvent.title}
+                    </h2>
+                    <span className={`text-xs px-2 py-1 rounded font-medium ${selectedEvent.enabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {selectedEvent.enabled !== false ? 'Enabled' : 'Disabled'}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
+                  {lastRefresh && (
+                    <p className="text-xs text-gray-600 mb-4">
+                      Last updated: {format(lastRefresh, 'HH:mm:ss')}
+                    </p>
+                  )}
+                  {/* Big buttons in one row */}
+                  <div className="flex flex-wrap gap-3">
                     <button
-                      onClick={() => handleToggleEvent(selectedEvent.id, selectedEvent.enabled !== false)}
-                      className={`px-4 py-2 rounded-lg transition-colors text-sm ${
+                      onClick={() => handleToggleEvent(selectedEvent.id, selectedEvent.enabled !== false, selectedEvent.title)}
+                      className={`px-6 py-3 rounded-lg transition-all text-base font-semibold shadow-md hover:shadow-lg ${
                         selectedEvent.enabled !== false
-                          ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                          : 'bg-green-600 text-white hover:bg-green-700'
+                          ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                          : 'bg-green-500 text-white hover:bg-green-600'
                       }`}
                     >
-                      {selectedEvent.enabled !== false ? 'Disable Event' : 'Enable Event'}
+                      {selectedEvent.enabled !== false ? '⏸ Disable Event' : '▶ Enable Event'}
                     </button>
                     <button
-                      onClick={() => handleDeleteEvent(selectedEvent.id)}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      onClick={() => handleDeleteEvent(selectedEvent.id, selectedEvent.title)}
+                      className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-base font-semibold shadow-md hover:shadow-lg"
                     >
-                      Delete Event
+                      🗑 Delete Event
                     </button>
                     <button
                       onClick={refreshBookings}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                      className="px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all text-base font-semibold shadow-md hover:shadow-lg"
                     >
-                      Refresh
+                      🔄 Refresh
                     </button>
                   </div>
                 </div>
@@ -399,10 +447,10 @@ export default function AdminDashboard() {
                               )}
                             </div>
                             <button
-                              onClick={() => handleCancelBooking(booking.id)}
-                              className="ml-4 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                              onClick={() => handleCancelBooking(booking.id, booking.name)}
+                              className="ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm font-medium shadow-sm hover:shadow-md whitespace-nowrap"
                             >
-                              Cancel
+                              Cancel Booking
                             </button>
                           </div>
                         </div>
