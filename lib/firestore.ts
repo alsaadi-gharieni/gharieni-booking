@@ -12,11 +12,12 @@ import {
   orderBy 
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Event, Booking } from '@/types';
+import { Event, Booking, Device } from '@/types';
 
-// Events collection
+// Collections
 export const eventsCollection = collection(db, 'events');
 export const bookingsCollection = collection(db, 'bookings');
+export const devicesCollection = collection(db, 'devices');
 
 // Create a new event
 export async function createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): Promise<string> {
@@ -36,6 +37,7 @@ export async function getAllEvents(): Promise<Event[]> {
     return {
       id: doc.id,
       ...data,
+      deviceIds: data.deviceIds || [],
       enabled: data.enabled !== undefined ? data.enabled : true,
       createdAt: data.createdAt?.toDate() || new Date(),
     } as Event;
@@ -55,6 +57,7 @@ export async function getEventById(eventId: string): Promise<Event | null> {
   return {
     id: docSnap.id,
     ...data,
+    deviceIds: data.deviceIds || [],
     enabled: data.enabled !== undefined ? data.enabled : true,
     createdAt: data.createdAt?.toDate() || new Date(),
   } as Event;
@@ -88,13 +91,14 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
 }
 
 // Get bookings for an event
-export async function getBookingsByEventId(eventId: string): Promise<Booking[]> {
+export async function getBookingsByEventId(eventId: string, deviceId?: string): Promise<Booking[]> {
   try {
-    // Query without orderBy to avoid needing composite index
-    const q = query(
-      bookingsCollection, 
-      where('eventId', '==', eventId)
-    );
+    const conditions: any[] = [where('eventId', '==', eventId)];
+    if (deviceId) {
+      conditions.push(where('deviceId', '==', deviceId));
+    }
+    
+    const q = query(bookingsCollection, ...conditions);
     const snapshot = await getDocs(q);
     
     const bookings = snapshot.docs.map(doc => {
@@ -102,6 +106,7 @@ export async function getBookingsByEventId(eventId: string): Promise<Booking[]> 
       return {
         id: doc.id,
         eventId: data.eventId,
+        deviceId: data.deviceId,
         slotTime: data.slotTime,
         date: data.date,
         name: data.name,
@@ -125,18 +130,24 @@ export async function getBookingsByEventId(eventId: string): Promise<Booking[]> 
   }
 }
 
-// Get bookings for a specific date and time slot
+// Get bookings for a specific date and time slot for a device
 export async function getBookingBySlot(
   eventId: string, 
   date: string, 
-  slotTime: string
+  slotTime: string,
+  deviceId?: string
 ): Promise<Booking | null> {
-  const q = query(
-    bookingsCollection,
+  const conditions: any[] = [
     where('eventId', '==', eventId),
     where('date', '==', date),
     where('slotTime', '==', slotTime)
-  );
+  ];
+  
+  if (deviceId) {
+    conditions.push(where('deviceId', '==', deviceId));
+  }
+  
+  const q = query(bookingsCollection, ...conditions);
   const snapshot = await getDocs(q);
   
   if (snapshot.empty) {
@@ -144,10 +155,18 @@ export async function getBookingBySlot(
   }
   
   const bookingDoc = snapshot.docs[0];
+  const data = bookingDoc.data();
   return {
     id: bookingDoc.id,
-    ...bookingDoc.data(),
-    createdAt: bookingDoc.data().createdAt?.toDate() || new Date(),
+    eventId: data.eventId,
+    deviceId: data.deviceId,
+    slotTime: data.slotTime,
+    date: data.date,
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    note: data.note,
+    createdAt: data.createdAt?.toDate() || new Date(),
   } as Booking;
 }
 
@@ -167,9 +186,17 @@ export async function checkExistingBooking(
   
   if (!emailSnapshot.empty) {
     const bookingDoc = emailSnapshot.docs[0];
+    const data = bookingDoc.data();
     return {
       id: bookingDoc.id,
-      ...bookingDoc.data(),
+      eventId: data.eventId,
+      deviceId: data.deviceId,
+      slotTime: data.slotTime,
+      date: data.date,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      note: data.note,
       createdAt: bookingDoc.data().createdAt?.toDate() || new Date(),
     } as Booking;
   }
@@ -184,12 +211,82 @@ export async function checkExistingBooking(
   
   if (!phoneSnapshot.empty) {
     const bookingDoc = phoneSnapshot.docs[0];
+    const data = bookingDoc.data();
     return {
       id: bookingDoc.id,
-      ...bookingDoc.data(),
+      eventId: data.eventId,
+      deviceId: data.deviceId,
+      slotTime: data.slotTime,
+      date: data.date,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      note: data.note,
       createdAt: bookingDoc.data().createdAt?.toDate() || new Date(),
     } as Booking;
   }
   
   return null;
+}
+
+// Device CRUD operations
+export async function createDevice(deviceData: Omit<Device, 'id' | 'createdAt'>): Promise<string> {
+  const docRef = await addDoc(devicesCollection, {
+    ...deviceData,
+    createdAt: Timestamp.now(),
+  });
+  return docRef.id;
+}
+
+export async function getAllDevices(): Promise<Device[]> {
+  const snapshot = await getDocs(query(devicesCollection, orderBy('createdAt', 'desc')));
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      name: data.name,
+      description: data.description,
+      createdAt: data.createdAt?.toDate() || new Date(),
+    } as Device;
+  });
+}
+
+export async function getDeviceById(deviceId: string): Promise<Device | null> {
+  const docRef = doc(db, 'devices', deviceId);
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    return null;
+  }
+  
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    name: data.name,
+    description: data.description,
+    createdAt: data.createdAt?.toDate() || new Date(),
+  } as Device;
+}
+
+export async function updateDevice(deviceId: string, deviceData: Partial<Omit<Device, 'id' | 'createdAt'>>): Promise<void> {
+  const docRef = doc(db, 'devices', deviceId);
+  await updateDoc(docRef, deviceData);
+}
+
+export async function deleteDevice(deviceId: string): Promise<void> {
+  const docRef = doc(db, 'devices', deviceId);
+  await deleteDoc(docRef);
+}
+
+export async function getDevicesByIds(deviceIds: string[]): Promise<Device[]> {
+  if (deviceIds.length === 0) return [];
+  
+  const devices: Device[] = [];
+  for (const deviceId of deviceIds) {
+    const device = await getDeviceById(deviceId);
+    if (device) {
+      devices.push(device);
+    }
+  }
+  return devices;
 }

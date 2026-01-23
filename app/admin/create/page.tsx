@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createEvent } from '@/lib/firestore'
+import { createEvent, getAllDevices } from '@/lib/firestore'
+import { Device } from '@/types'
 import toast from 'react-hot-toast'
 import { isAuthenticated } from '@/lib/auth'
 
@@ -19,7 +20,34 @@ export default function CreateEvent() {
       return
     }
     setAuthChecked(true)
+    loadDevices()
   }, [router])
+
+  const loadDevices = async () => {
+    try {
+      const devicesData = await getAllDevices()
+      setDevices(devicesData)
+    } catch (error) {
+      console.error('Error loading devices:', error)
+      toast.error('Failed to load devices')
+    } finally {
+      setLoadingDevices(false)
+    }
+  }
+
+  const toggleDevice = (deviceId: string) => {
+    if (formData.deviceIds.includes(deviceId)) {
+      setFormData({
+        ...formData,
+        deviceIds: formData.deviceIds.filter(id => id !== deviceId),
+      })
+    } else {
+      setFormData({
+        ...formData,
+        deviceIds: [...formData.deviceIds, deviceId],
+      })
+    }
+  }
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -27,8 +55,11 @@ export default function CreateEvent() {
     slotDuration: 30,
     startTime: '09:00',
     endTime: '17:00',
+    deviceIds: [] as string[],
   })
   const [dateInput, setDateInput] = useState('')
+  const [devices, setDevices] = useState<Device[]>([])
+  const [loadingDevices, setLoadingDevices] = useState(true)
 
   const generateTimeSlots = (startTime: string, endTime: string, duration: number): string[] => {
     const slots: string[] = []
@@ -78,12 +109,19 @@ export default function CreateEvent() {
         formData.slotDuration
       )
 
+      if (formData.deviceIds.length === 0) {
+        toast.error('Please select at least one device for this event')
+        setLoading(false)
+        return
+      }
+
       const eventData: any = {
         title: formData.title,
         description: formData.description,
         eventDates: formData.eventDates,
         slotDuration: formData.slotDuration,
         availableSlots,
+        deviceIds: formData.deviceIds,
         enabled: true, // Events are enabled by default
       }
 
@@ -260,6 +298,76 @@ export default function CreateEvent() {
                 <option value={45}>45 minutes</option>
                 <option value={60}>60 minutes</option>
               </select>
+            </div>
+
+            {/* Device Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Select Devices * (At least one device required)
+              </label>
+              {loadingDevices ? (
+                <p className="text-sm text-gray-600">Loading devices...</p>
+              ) : devices.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-900 text-sm mb-2">
+                    No devices available. Please create devices first.
+                  </p>
+                  <Link
+                    href="/admin/devices"
+                    className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                  >
+                    Go to Device Management →
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {devices.map((device) => {
+                      const isSelected = formData.deviceIds.includes(device.id)
+                      return (
+                        <button
+                          key={device.id}
+                          type="button"
+                          onClick={() => toggleDevice(device.id)}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            isSelected
+                              ? 'bg-indigo-50 border-indigo-500'
+                              : 'bg-white border-gray-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                              isSelected
+                                ? 'bg-indigo-600 border-indigo-600'
+                                : 'border-gray-400'
+                            }`}>
+                              {isSelected && (
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900">{device.name}</div>
+                              {device.description && (
+                                <div className="text-xs text-gray-600 mt-1">{device.description}</div>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {formData.deviceIds.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">Please select at least one device</p>
+                  )}
+                  {formData.deviceIds.length > 0 && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      {formData.deviceIds.length} device{formData.deviceIds.length !== 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Preview Slots */}

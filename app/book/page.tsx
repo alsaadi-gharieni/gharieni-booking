@@ -2,8 +2,8 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getEventById, getBookingBySlot, createBooking, checkExistingBooking, getBookingsByEventId } from '@/lib/firestore'
-import { Event } from '@/types'
+import { getEventById, getBookingBySlot, createBooking, checkExistingBooking, getBookingsByEventId, getDevicesByIds } from '@/lib/firestore'
+import { Event, Device } from '@/types'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
@@ -13,9 +13,11 @@ function BookEventContent() {
   const eventId = searchParams?.get('eventId') || ''
   
   const [event, setEvent] = useState<Event | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [bookingForm, setBookingForm] = useState({
     name: '',
     email: '',
@@ -23,7 +25,7 @@ function BookEventContent() {
     note: '',
   })
   const [submitting, setSubmitting] = useState(false)
-  const [bookedSlots, setBookedSlots] = useState<Map<string, Set<string>>>(new Map())
+  const [bookedSlots, setBookedSlots] = useState<Map<string, Map<string, Set<string>>>>(new Map()) // Map<date, Map<deviceId, Set<slotTime>>>
 
   useEffect(() => {
     if (eventId) {
@@ -41,22 +43,36 @@ function BookEventContent() {
       }
       setEvent(eventData)
       
-      // ✅ Fetch ALL bookings for this event in ONE query (much faster!)
+      // Load devices for this event
+      if (eventData.deviceIds && eventData.deviceIds.length > 0) {
+        const devicesData = await getDevicesByIds(eventData.deviceIds)
+        setDevices(devicesData)
+      }
+      
+      // Load all bookings for this event to check availability per device
       const allBookings = await getBookingsByEventId(eventId)
       
-      // ✅ Process bookings client-side to build the booked slots map
-      const bookedMap = new Map<string, Set<string>>()
+      // Build booked slots map: Map<date, Map<deviceId, Set<slotTime>>>
+      const bookedMap = new Map<string, Map<string, Set<string>>>()
       
-      // Initialize map for all dates
-      eventData.eventDates.forEach(date => {
-        bookedMap.set(date, new Set<string>())
-      })
+      // Initialize for all dates and devices
+      for (const date of eventData.eventDates) {
+        const dateMap = new Map<string, Set<string>>()
+        for (const deviceId of eventData.deviceIds || []) {
+          dateMap.set(deviceId, new Set<string>())
+        }
+        bookedMap.set(date, dateMap)
+      }
       
-      // Mark booked slots
+      // Mark booked slots per device
       allBookings.forEach(booking => {
-        const bookedForDate = bookedMap.get(booking.date) || new Set<string>()
-        bookedForDate.add(booking.slotTime)
-        bookedMap.set(booking.date, bookedForDate)
+        const dateMap = bookedMap.get(booking.date)
+        if (dateMap && booking.deviceId) {
+          const deviceSet = dateMap.get(booking.deviceId)
+          if (deviceSet) {
+            deviceSet.add(booking.slotTime)
+          }
+        }
       })
       
       setBookedSlots(bookedMap)
@@ -71,8 +87,8 @@ function BookEventContent() {
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedDate || !selectedSlot) {
-      toast.error('Please select a date and time slot')
+    if (!selectedDate || !selectedSlot || !selectedDeviceId) {
+      toast.error('Please select a date, time slot, and device')
       return
     }
 
@@ -97,10 +113,16 @@ function BookEventContent() {
     setSubmitting(true)
 
     try {
-      const existingBooking = await getBookingBySlot(eventId, selectedDate, selectedSlot)
+      // Double-check slot availability for this specific device
+      const existingBooking = await getBookingBySlot(
+        eventId,
+        selectedDate,
+        selectedSlot,
+        selectedDeviceId
+      )
       
       if (existingBooking) {
-        toast.error('This slot has already been booked. Please select another time.')
+        toast.error('This device slot has already been booked. Please select another device or time.')
         setSubmitting(false)
         return
       }
@@ -119,6 +141,7 @@ function BookEventContent() {
 
       const bookingData: any = {
         eventId,
+        deviceId: selectedDeviceId,
         slotTime: selectedSlot,
         date: selectedDate,
         name: bookingForm.name.trim(),
@@ -136,6 +159,7 @@ function BookEventContent() {
       await loadEvent()
       setSelectedSlot(null)
       setSelectedDate(null)
+      setSelectedDeviceId(null)
       setBookingForm({ name: '', email: '', phone: '', note: '' })
     } catch (error) {
       console.error('Error creating booking:', error)
@@ -182,14 +206,59 @@ function BookEventContent() {
     )
   }
 
-  const getAvailableSlotsForDate = (date: string) => {
-    const bookedForDate = bookedSlots.get(date) || new Set<string>()
-    return event.availableSlots.filter(slot => !bookedForDate.has(slot))
+  // Check if event has devices
+  if (!event.deviceIds || event.deviceIds.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{event.title}</h1>
+          <p className="text-gray-800 mb-4">This event is not configured with any devices. Please contact the administrator.</p>
+          <div className="mb-6 flex justify-center">
+            {event.companyLogo ? (
+              <img src={event.companyLogo} alt="Company Logo" className="h-20 object-contain" />
+            ) : (
+              <img src="/images/logo-dark.png" alt="Logo" className="h-20 object-contain" />
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  const isSlotBooked = (date: string, slot: string) => {
-    const bookedForDate = bookedSlots.get(date) || new Set<string>()
-    return bookedForDate.has(slot)
+  const getAvailableSlotsForDate = (date: string, deviceId: string) => {
+    if (!deviceId) return []
+    const dateMap = bookedSlots.get(date) || new Map<string, Set<string>>()
+    const bookedForDevice = dateMap.get(deviceId) || new Set<string>()
+    return event.availableSlots.filter(slot => !bookedForDevice.has(slot))
+  }
+
+  const isSlotBooked = (date: string, slot: string, deviceId: string) => {
+    const dateMap = bookedSlots.get(date) || new Map<string, Set<string>>()
+    const bookedForDevice = dateMap.get(deviceId) || new Set<string>()
+    return bookedForDevice.has(slot)
+  }
+
+  const getAvailableDatesForDevice = (deviceId: string) => {
+    if (!deviceId) return []
+    return event.eventDates.filter(date => {
+      const availableSlots = getAvailableSlotsForDate(date, deviceId)
+      return availableSlots.length > 0
+    })
+  }
+
+  const handleDeviceSelect = (deviceId: string) => {
+    setSelectedDeviceId(deviceId)
+    setSelectedDate(null)
+    setSelectedSlot(null)
+  }
+
+  const handleDateSelect = (date: string) => {
+    setSelectedDate(date)
+    setSelectedSlot(null)
+  }
+
+  const handleSlotSelect = (slot: string) => {
+    setSelectedSlot(slot)
   }
 
   return (
@@ -230,27 +299,25 @@ function BookEventContent() {
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Book Your Slot</h2>
           
+          {/* Device Selection */}
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-900 mb-4">
-              Select a Date *
+              Select a Device *
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {event.eventDates.map((date) => {
-                const isSelected = selectedDate === date
-                const availableSlotsForDate = getAvailableSlotsForDate(date)
-                const hasAvailableSlots = availableSlotsForDate.length > 0
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {devices.map((device) => {
+                const isSelected = selectedDeviceId === device.id
+                const availableDates = getAvailableDatesForDevice(device.id)
+                const hasAvailability = availableDates.length > 0
                 
                 return (
                   <button
-                    key={date}
+                    key={device.id}
                     type="button"
-                    disabled={!hasAvailableSlots}
-                    onClick={() => {
-                      setSelectedDate(date)
-                      setSelectedSlot(null)
-                    }}
+                    disabled={!hasAvailability}
+                    onClick={() => handleDeviceSelect(device.id)}
                     className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      !hasAvailableSlots
+                      !hasAvailability
                         ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
                         : isSelected
                         ? 'bg-indigo-600 border-indigo-600 text-white'
@@ -258,12 +325,17 @@ function BookEventContent() {
                     }`}
                   >
                     <div className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                      {format(new Date(date), 'EEEE, MMM dd, yyyy')}
+                      {device.name}
                     </div>
-                    <div className={`text-xs mt-1 ${isSelected ? 'text-indigo-100' : 'text-gray-800'}`}>
-                      {hasAvailableSlots 
-                        ? `${availableSlotsForDate.length} slots available`
-                        : 'Fully booked'}
+                    {device.description && (
+                      <div className={`text-xs mt-1 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
+                        {device.description}
+                      </div>
+                    )}
+                    <div className={`text-xs mt-2 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
+                      {hasAvailability 
+                        ? `${availableDates.length} date${availableDates.length !== 1 ? 's' : ''} available`
+                        : 'No availability'}
                     </div>
                   </button>
                 )
@@ -271,43 +343,41 @@ function BookEventContent() {
             </div>
           </div>
 
-          {selectedDate && (
+          {/* Date Selection */}
+          {selectedDeviceId && (
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-900 mb-4">
-                Select a Time Slot for {format(new Date(selectedDate), 'MMM dd, yyyy')} *
+                Select a Date for {devices.find(d => d.id === selectedDeviceId)?.name} *
               </label>
-              {getAvailableSlotsForDate(selectedDate).length === 0 ? (
+              {getAvailableDatesForDevice(selectedDeviceId).length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-yellow-900">
-                    All slots for this date have been booked. Please select another date.
+                    No available dates for this device. Please select another device.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {event.availableSlots.map((slot) => {
-                    const isBooked = isSlotBooked(selectedDate, slot)
-                    const isSelected = selectedSlot === slot
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {getAvailableDatesForDevice(selectedDeviceId).map((date) => {
+                    const isSelected = selectedDate === date
+                    const availableSlots = getAvailableSlotsForDate(date, selectedDeviceId)
                     
                     return (
                       <button
-                        key={slot}
+                        key={date}
                         type="button"
-                        disabled={isBooked}
-                        onClick={() => !isBooked && setSelectedSlot(slot)}
-                        className={`p-4 rounded-lg border-2 transition-all ${
-                          isBooked
-                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
-                            : isSelected
+                        onClick={() => handleDateSelect(date)}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected
                             ? 'bg-indigo-600 border-indigo-600 text-white'
                             : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
                         }`}
                       >
                         <div className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                          {slot}
+                          {format(new Date(date), 'EEEE, MMM dd, yyyy')}
                         </div>
-                        {isBooked && (
-                          <div className="text-xs mt-1 text-gray-800">Booked</div>
-                        )}
+                        <div className={`text-xs mt-1 ${isSelected ? 'text-indigo-100' : 'text-gray-800'}`}>
+                          {availableSlots.length} slot{availableSlots.length !== 1 ? 's' : ''} available
+                        </div>
                       </button>
                     )
                   })}
@@ -316,7 +386,59 @@ function BookEventContent() {
             </div>
           )}
 
-          {selectedDate && selectedSlot && !isSlotBooked(selectedDate, selectedSlot) && (
+          {/* Time Slot Selection */}
+          {selectedDate && selectedDeviceId && (
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-900 mb-4">
+                Select a Time Slot for {format(new Date(selectedDate), 'MMM dd, yyyy')} *
+              </label>
+              {(() => {
+                const availableSlots = getAvailableSlotsForDate(selectedDate, selectedDeviceId)
+                
+                if (availableSlots.length === 0) {
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-900">
+                        All slots for this date have been booked. Please select another date.
+                      </p>
+                    </div>
+                  )
+                }
+                
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {availableSlots.map((slot) => {
+                      const isSelected = selectedSlot === slot
+                      
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          onClick={() => handleSlotSelect(slot)}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <div className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                            {slot}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {selectedDate && selectedSlot && selectedDeviceId && (() => {
+            const availableSlots = getAvailableSlotsForDate(selectedDate, selectedDeviceId)
+            const isSlotAvailable = availableSlots.includes(selectedSlot)
+            if (!isSlotAvailable) return null
+            
+            return (
             <form onSubmit={handleBooking} className="space-y-6">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-900 mb-2">
@@ -381,6 +503,11 @@ function BookEventContent() {
                 <p className="text-sm text-gray-900">
                   <strong>Selected Slot:</strong> {format(new Date(selectedDate), 'MMM dd, yyyy')} at {selectedSlot}
                 </p>
+                {selectedDeviceId && (
+                  <p className="text-sm text-gray-900 mt-1">
+                    <strong>Selected Device:</strong> {devices.find(d => d.id === selectedDeviceId)?.name}
+                  </p>
+                )}
               </div>
 
               <button
@@ -391,11 +518,14 @@ function BookEventContent() {
                 {submitting ? 'Booking...' : 'Confirm Booking'}
               </button>
             </form>
-          )}
+            )
+          })()}
 
-          {(!selectedDate || !selectedSlot) && (
+          {(!selectedDeviceId || !selectedDate || !selectedSlot) && (
             <div className="text-center text-gray-700 py-8">
-              {!selectedDate 
+              {!selectedDeviceId 
+                ? 'Please select a device above to continue'
+                : !selectedDate
                 ? 'Please select a date above to continue'
                 : 'Please select a time slot above to continue'}
             </div>

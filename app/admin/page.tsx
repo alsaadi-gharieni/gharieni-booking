@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getAllEvents, getBookingsByEventId, toggleEventEnabled, deleteEvent, deleteBooking } from '@/lib/firestore'
-import { Event, Booking } from '@/types'
+import { getAllEvents, getBookingsByEventId, toggleEventEnabled, deleteEvent, deleteBooking, getDevicesByIds } from '@/lib/firestore'
+import { Event, Booking, Device } from '@/types'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { isAuthenticated, logout, getAdminEmail } from '@/lib/auth'
@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [devices, setDevices] = useState<Device[]>([])
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -73,9 +74,24 @@ export default function AdminDashboard() {
     }
   }
 
+  const loadDevices = async (deviceIds: string[]) => {
+    try {
+      if (deviceIds && deviceIds.length > 0) {
+        const devicesData = await getDevicesByIds(deviceIds)
+        setDevices(devicesData)
+      } else {
+        setDevices([])
+      }
+    } catch (error) {
+      console.error('Error loading devices:', error)
+      setDevices([])
+    }
+  }
+
   const handleEventSelect = (event: Event) => {
     setSelectedEvent(event)
     loadBookings(event.id)
+    loadDevices(event.deviceIds || [])
   }
 
   // Refresh bookings for selected event
@@ -232,6 +248,12 @@ export default function AdminDashboard() {
               Logout
             </button>
             <Link
+              href="/admin/devices"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition-colors"
+            >
+              Manage Devices
+            </Link>
+            <Link
               href="/admin/create"
               className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
             >
@@ -367,37 +389,52 @@ export default function AdminDashboard() {
                 
                 {/* Availability Overview */}
                 <div className="bg-white rounded-lg p-6 mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Availability by Date</h3>
+                  <h3 className="font-semibold text-gray-900 mb-4">Availability by Date and Device</h3>
                   <div className="space-y-6">
                     {selectedEvent.eventDates.map((date) => {
                       const dateBookings = bookings.filter(b => b.date === date)
-                      const bookedSlotsForDate = new Set(dateBookings.map(b => b.slotTime))
                       
                       return (
                         <div key={date}>
                           <h4 className="font-medium text-gray-900 mb-3">
                             {format(new Date(date), 'EEEE, MMMM dd, yyyy')}
                           </h4>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {selectedEvent.availableSlots.map((slot) => {
-                              const isBooked = bookedSlotsForDate.has(slot)
-                              return (
-                                <div
-                                  key={`${date}-${slot}`}
-                                  className={`p-3 rounded border text-center ${
-                                    isBooked
-                                      ? 'bg-red-50 border-red-200'
-                                      : 'bg-green-50 border-green-200'
-                                  }`}
-                                >
-                                  <div className="font-medium text-gray-900">{slot}</div>
-                                  <div className={`text-xs mt-1 ${isBooked ? 'text-red-800' : 'text-green-800'}`}>
-                                    {isBooked ? 'Booked' : 'Available'}
+                          {devices.length === 0 ? (
+                            <p className="text-sm text-gray-600">No devices attached to this event</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {devices.map((device) => {
+                                const deviceBookings = dateBookings.filter(b => b.deviceId === device.id)
+                                const bookedSlotsForDevice = new Set(deviceBookings.map(b => b.slotTime))
+                                
+                                return (
+                                  <div key={device.id}>
+                                    <h5 className="text-sm font-medium text-gray-700 mb-2">{device.name}</h5>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                      {selectedEvent.availableSlots.map((slot) => {
+                                        const isBooked = bookedSlotsForDevice.has(slot)
+                                        return (
+                                          <div
+                                            key={`${date}-${device.id}-${slot}`}
+                                            className={`p-2 rounded border text-center ${
+                                              isBooked
+                                                ? 'bg-red-50 border-red-200'
+                                                : 'bg-green-50 border-green-200'
+                                            }`}
+                                          >
+                                            <div className="font-medium text-gray-900 text-sm">{slot}</div>
+                                            <div className={`text-xs mt-1 ${isBooked ? 'text-red-800' : 'text-green-800'}`}>
+                                              {isBooked ? 'Booked' : 'Available'}
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              )
-                            })}
-                          </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -440,6 +477,11 @@ export default function AdminDashboard() {
                               <div className="text-sm text-gray-700 mt-1">
                                 {format(new Date(booking.date), 'MMM dd, yyyy')} at {booking.slotTime}
                               </div>
+                              {booking.deviceId && (
+                                <div className="text-sm text-gray-700 mt-1">
+                                  Device: {devices.find(d => d.id === booking.deviceId)?.name || booking.deviceId}
+                                </div>
+                              )}
                               {booking.note && (
                                 <div className="text-sm text-gray-800 mt-2 italic">
                                   "{booking.note}"
