@@ -7,6 +7,8 @@ import { getAllDevices, createDevice, updateDevice, deleteDevice } from '@/lib/f
 import { Device } from '@/types'
 import toast from 'react-hot-toast'
 import { isAuthenticated } from '@/lib/auth'
+import { uploadImage, getDeviceImagePath, deleteImage, extractStoragePathFromUrl } from '@/lib/storage'
+import Image from 'next/image'
 
 export default function DevicesManagement() {
   const router = useRouter()
@@ -19,6 +21,9 @@ export default function DevicesManagement() {
     name: '',
     description: '',
   })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -50,27 +55,68 @@ export default function DevicesManagement() {
     }
 
     try {
+      setUploadingImage(true)
+      let imageUrl: string | undefined = editingDevice?.imageUrl
+
       if (editingDevice) {
+        // Editing existing device
+        let oldImageUrl: string | undefined = editingDevice.imageUrl
+        
+        // Upload new image if one was selected
+        if (imageFile) {
+          const fileExtension = imageFile.name.split('.').pop() || 'jpg'
+          const imagePath = getDeviceImagePath(editingDevice.id, `image.${fileExtension}`)
+          imageUrl = await uploadImage(imageFile, imagePath)
+          
+          // Delete old image if it exists and is different
+          if (oldImageUrl && oldImageUrl !== imageUrl) {
+            const oldPath = extractStoragePathFromUrl(oldImageUrl)
+            if (oldPath) {
+              await deleteImage(oldPath).catch(err => {
+                console.warn('Failed to delete old image:', err)
+              })
+            }
+          }
+        }
+        
         await updateDevice(editingDevice.id, {
           name: formData.name.trim(),
           description: formData.description.trim() || undefined,
+          imageUrl: imageUrl,
         })
         toast.success('Device updated successfully!')
       } else {
-        await createDevice({
+        // Creating new device
+        // First create the device without image
+        const deviceId = await createDevice({
           name: formData.name.trim(),
           description: formData.description.trim() || undefined,
         })
+        
+        // Then upload image if provided
+        if (imageFile) {
+          const fileExtension = imageFile.name.split('.').pop() || 'jpg'
+          const imagePath = getDeviceImagePath(deviceId, `image.${fileExtension}`)
+          imageUrl = await uploadImage(imageFile, imagePath)
+          
+          // Update device with image URL
+          await updateDevice(deviceId, { imageUrl })
+        }
+        
         toast.success('Device created successfully!')
       }
       
       setShowForm(false)
       setEditingDevice(null)
       setFormData({ name: '', description: '' })
+      setImageFile(null)
+      setImagePreview(null)
       await loadDevices()
     } catch (error) {
       console.error('Error saving device:', error)
       toast.error('Failed to save device')
+    } finally {
+      setUploadingImage(false)
     }
   }
 
@@ -80,6 +126,8 @@ export default function DevicesManagement() {
       name: device.name,
       description: device.description || '',
     })
+    setImageFile(null)
+    setImagePreview(device.imageUrl || null)
     setShowForm(true)
   }
 
@@ -94,7 +142,23 @@ export default function DevicesManagement() {
     }
     
     try {
+      // Find the device to get its image URL
+      const device = devices.find(d => d.id === deviceId)
+      
+      // Delete the device from Firestore
       await deleteDevice(deviceId)
+      
+      // Delete the associated image from Storage if it exists
+      if (device?.imageUrl) {
+        const imagePath = extractStoragePathFromUrl(device.imageUrl)
+        if (imagePath) {
+          await deleteImage(imagePath).catch(err => {
+            console.warn('Failed to delete device image:', err)
+            // Don't fail the whole operation if image deletion fails
+          })
+        }
+      }
+      
       toast.success('Device deleted successfully')
       await loadDevices()
     } catch (error) {
@@ -107,6 +171,39 @@ export default function DevicesManagement() {
     setShowForm(false)
     setEditingDevice(null)
     setFormData({ name: '', description: '' })
+    setImageFile(null)
+    setImagePreview(null)
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB')
+        return
+      }
+      
+      setImageFile(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
   }
 
   if (!authChecked || loading) {
@@ -175,6 +272,55 @@ export default function DevicesManagement() {
                 />
               </div>
 
+              {/* Image Upload */}
+              <div>
+                <label htmlFor="image" className="block text-sm font-medium text-gray-900 mb-2">
+                  Device Image (optional)
+                </label>
+                {imagePreview ? (
+                  <div className="relative inline-block">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-gray-300">
+                      <Image
+                        src={imagePreview}
+                        alt="Device preview"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      title="Remove image"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input
+                      type="file"
+                      id="image"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="image"
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm text-gray-600">Click to upload image</span>
+                      <span className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end space-x-4">
                 <button
                   type="button"
@@ -185,9 +331,10 @@ export default function DevicesManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  disabled={uploadingImage}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingDevice ? 'Update Device' : 'Create Device'}
+                  {uploadingImage ? 'Uploading...' : editingDevice ? 'Update Device' : 'Create Device'}
                 </button>
               </div>
             </form>
@@ -216,17 +363,29 @@ export default function DevicesManagement() {
                     key={device.id}
                     className="p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-lg">{device.name}</h3>
-                        {device.description && (
-                          <p className="text-sm text-gray-700 mt-1">{device.description}</p>
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex gap-4 flex-1">
+                        {device.imageUrl && (
+                          <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-300 flex-shrink-0">
+                            <Image
+                              src={device.imageUrl}
+                              alt={device.name}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
                         )}
-                        <p className="text-xs text-gray-500 mt-2">
-                          Created: {new Date(device.createdAt).toLocaleDateString()}
-                        </p>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 text-lg">{device.name}</h3>
+                          {device.description && (
+                            <p className="text-sm text-gray-700 mt-1">{device.description}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">
+                            Created: {new Date(device.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
+                      <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(device)}
                           className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"

@@ -4,6 +4,16 @@ const nextConfig = {
   output: 'export', // Required for Firebase Hosting static export
   images: {
     unoptimized: true, // Required for static export
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com',
+      },
+    ],
   },
   // Ensure environment variables are available at build time
   env: {

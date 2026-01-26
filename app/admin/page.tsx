@@ -313,6 +313,13 @@ export default function AdminDashboard() {
                     
                     {/* Action Buttons - Separated with more spacing */}
                     <div className="mt-2 flex gap-2">
+                      <Link
+                        href={`/admin/create?eventId=${event.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md text-xs font-medium transition-colors text-center"
+                      >
+                        ✏️ Edit
+                      </Link>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -362,6 +369,12 @@ export default function AdminDashboard() {
                   )}
                   {/* Big buttons in one row */}
                   <div className="flex flex-wrap gap-3">
+                    <Link
+                      href={`/admin/create?eventId=${selectedEvent.id}`}
+                      className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-base font-semibold shadow-md hover:shadow-lg"
+                    >
+                      ✏️ Edit Event
+                    </Link>
                     <button
                       onClick={() => handleToggleEvent(selectedEvent.id, selectedEvent.enabled !== false, selectedEvent.title)}
                       className={`px-6 py-3 rounded-lg transition-all text-base font-semibold shadow-md hover:shadow-lg ${

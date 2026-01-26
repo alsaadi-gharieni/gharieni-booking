@@ -13,7 +13,7 @@
     "next": "14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "firebase": "^10.7.1",
+    "firebase": "^12.5.0",
     "date-fns": "^3.0.6",
     "react-hot-toast": "^2.4.1"
   },

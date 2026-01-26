@@ -6,6 +6,7 @@ import { getEventById, getBookingBySlot, createBooking, checkExistingBooking, ge
 import { Event, Device } from '@/types'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
+import Image from 'next/image'
 
 export default function BookEventClient() {
   const params = useParams()
@@ -358,18 +359,32 @@ export default function BookEventClient() {
                         : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
                     }`}
                   >
-                    <div className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                      {device.name}
-                    </div>
-                    {device.description && (
-                      <div className={`text-xs mt-1 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
-                        {device.description}
+                    <div className="flex flex-col items-center gap-3">
+                      {device.imageUrl && (
+                        <div className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-lg overflow-hidden border-2 border-gray-200">
+                          <Image
+                            src={device.imageUrl}
+                            alt={device.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="text-center w-full">
+                        <div className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                          {device.name}
+                        </div>
+                        {device.description && (
+                          <div className={`text-xs mt-1 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
+                            {device.description}
+                          </div>
+                        )}
+                        <div className={`text-xs mt-2 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
+                          {hasAvailability 
+                            ? `${availableDates.length} date${availableDates.length !== 1 ? 's' : ''} available`
+                            : 'No availability'}
+                        </div>
                       </div>
-                    )}
-                    <div className={`text-xs mt-2 ${isSelected ? 'text-indigo-100' : 'text-gray-600'}`}>
-                      {hasAvailability 
-                        ? `${availableDates.length} date${availableDates.length !== 1 ? 's' : ''} available`
-                        : 'No availability'}
                     </div>
                   </button>
                 )
@@ -468,12 +483,7 @@ export default function BookEventClient() {
           )}
 
           {/* Booking Details Form */}
-          {selectedDate && selectedSlot && selectedDeviceId && (() => {
-            const availableDevices = getAvailableDevicesForSlot(selectedDate, selectedSlot)
-            const isDeviceAvailable = availableDevices.some(d => d.id === selectedDeviceId)
-            if (!isDeviceAvailable) return null
-            
-            return (
+          {selectedDate && selectedSlot && selectedDeviceId && !isSlotBooked(selectedDate, selectedSlot, selectedDeviceId) && (
             <form onSubmit={handleBooking} className="space-y-6">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-900 mb-2">
@@ -553,8 +563,7 @@ export default function BookEventClient() {
                 {submitting ? 'Booking...' : 'Confirm Booking'}
               </button>
             </form>
-            )
-          })()}
+          )}
 
           {(!selectedDeviceId || !selectedDate || !selectedSlot) && (
             <div className="text-center text-gray-700 py-8">

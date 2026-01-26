@@ -63,6 +63,12 @@ export async function getEventById(eventId: string): Promise<Event | null> {
   } as Event;
 }
 
+// Update an event
+export async function updateEvent(eventId: string, eventData: Partial<Omit<Event, 'id' | 'createdAt'>>): Promise<void> {
+  const docRef = doc(db, 'events', eventId);
+  await updateDoc(docRef, eventData);
+}
+
 // Toggle event enabled/disabled status
 export async function toggleEventEnabled(eventId: string, enabled: boolean): Promise<void> {
   const docRef = doc(db, 'events', eventId);
@@ -246,6 +252,7 @@ export async function getAllDevices(): Promise<Device[]> {
       id: doc.id,
       name: data.name,
       description: data.description,
+      imageUrl: data.imageUrl,
       createdAt: data.createdAt?.toDate() || new Date(),
     } as Device;
   });
@@ -264,6 +271,7 @@ export async function getDeviceById(deviceId: string): Promise<Device | null> {
     id: docSnap.id,
     name: data.name,
     description: data.description,
+    imageUrl: data.imageUrl,
     createdAt: data.createdAt?.toDate() || new Date(),
   } as Device;
 }

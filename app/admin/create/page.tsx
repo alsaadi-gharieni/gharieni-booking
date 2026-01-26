@@ -1,17 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { createEvent, getAllDevices } from '@/lib/firestore'
-import { Device } from '@/types'
+import { createEvent, getAllDevices, getEventById, updateEvent } from '@/lib/firestore'
+import { Device, Event } from '@/types'
 import toast from 'react-hot-toast'
 import { isAuthenticated } from '@/lib/auth'
+import Image from 'next/image'
 
 export default function CreateEvent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const eventId = searchParams?.get('eventId') || null
+  const isEditMode = !!eventId
+  
   const [loading, setLoading] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [loadingEvent, setLoadingEvent] = useState(false)
 
   useEffect(() => {
     // Check authentication
@@ -21,7 +27,12 @@ export default function CreateEvent() {
     }
     setAuthChecked(true)
     loadDevices()
-  }, [router])
+    
+    // Load event data if editing
+    if (isEditMode && eventId) {
+      loadEventData(eventId)
+    }
+  }, [router, eventId, isEditMode])
 
   const loadDevices = async () => {
     try {
@@ -32,6 +43,49 @@ export default function CreateEvent() {
       toast.error('Failed to load devices')
     } finally {
       setLoadingDevices(false)
+    }
+  }
+
+  const loadEventData = async (id: string) => {
+    setLoadingEvent(true)
+    try {
+      const event = await getEventById(id)
+      if (!event) {
+        toast.error('Event not found')
+        router.push('/admin')
+        return
+      }
+      
+      // Extract start and end time from availableSlots
+      const slots = event.availableSlots || []
+      const startTime = slots.length > 0 ? slots[0] : '09:00'
+      
+      // Calculate end time (add slot duration to last slot)
+      let calculatedEndTime = '17:00'
+      if (slots.length > 0) {
+        const lastSlot = slots[slots.length - 1]
+        const [lastHour, lastMin] = lastSlot.split(':').map(Number)
+        const endMinutes = lastHour * 60 + lastMin + (event.slotDuration || 30)
+        const endHour = Math.floor(endMinutes / 60)
+        const endMin = endMinutes % 60
+        calculatedEndTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`
+      }
+      
+      setFormData({
+        title: event.title,
+        description: event.description,
+        eventDates: event.eventDates || [],
+        slotDuration: event.slotDuration || 30,
+        startTime: startTime,
+        endTime: calculatedEndTime,
+        deviceIds: event.deviceIds || [],
+      })
+    } catch (error) {
+      console.error('Error loading event:', error)
+      toast.error('Failed to load event data')
+      router.push('/admin')
+    } finally {
+      setLoadingEvent(false)
     }
   }
 
@@ -122,12 +176,20 @@ export default function CreateEvent() {
         slotDuration: formData.slotDuration,
         availableSlots,
         deviceIds: formData.deviceIds,
-        enabled: true, // Events are enabled by default
       }
 
-      const eventId = await createEvent(eventData)
-      toast.success('Event created successfully!')
-      router.push(`/admin?created=${eventId}`)
+      if (isEditMode && eventId) {
+        // Update existing event
+        await updateEvent(eventId, eventData)
+        toast.success('Event updated successfully!')
+        router.push(`/admin`)
+      } else {
+        // Create new event
+        eventData.enabled = true // Events are enabled by default
+        const newEventId = await createEvent(eventData)
+        toast.success('Event created successfully!')
+        router.push(`/admin?created=${newEventId}`)
+      }
     } catch (error) {
       console.error('Error creating event:', error)
       toast.error('Failed to create event. Please try again.')
@@ -142,7 +204,7 @@ export default function CreateEvent() {
     formData.slotDuration
   )
 
-  if (!authChecked) {
+  if (!authChecked || loadingEvent) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
@@ -154,7 +216,9 @@ export default function CreateEvent() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Create New Event</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEditMode ? 'Edit Event' : 'Create New Event'}
+          </h1>
           <Link
             href="/admin"
             className="text-gray-800 hover:text-gray-900"
@@ -335,8 +399,8 @@ export default function CreateEvent() {
                               : 'bg-white border-gray-300 hover:border-indigo-400'
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                               isSelected
                                 ? 'bg-indigo-600 border-indigo-600'
                                 : 'border-gray-400'
@@ -347,7 +411,17 @@ export default function CreateEvent() {
                                 </svg>
                               )}
                             </div>
-                            <div className="flex-1">
+                            {device.imageUrl && (
+                              <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+                                <Image
+                                  src={device.imageUrl}
+                                  alt={device.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
                               <div className="font-semibold text-gray-900">{device.name}</div>
                               {device.description && (
                                 <div className="text-xs text-gray-600 mt-1">{device.description}</div>
@@ -404,7 +478,7 @@ export default function CreateEvent() {
                 disabled={loading}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creating...' : 'Create Event'}
+                {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Event' : 'Create Event')}
               </button>
             </div>
           </div>
