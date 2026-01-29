@@ -237,6 +237,8 @@ export default function AdminDashboard() {
           'Date': format(new Date(booking.date), 'MMM dd, yyyy'),
           'Time': booking.slotTime,
           'Technology': device?.name || booking.deviceId || 'N/A',
+          'Company': (booking as any).company || '',
+          'Position': (booking as any).position || '',
           'Note': booking.note || '',
           'Booking ID': booking.id,
           'Created At': format(booking.createdAt, 'MMM dd, yyyy HH:mm'),
@@ -256,6 +258,8 @@ export default function AdminDashboard() {
         { wch: 15 }, // Date
         { wch: 10 }, // Time
         { wch: 25 }, // Technology
+        { wch: 25 }, // Company
+        { wch: 20 }, // Position
         { wch: 30 }, // Note
         { wch: 30 }, // Booking ID
         { wch: 20 }, // Created At
@@ -550,23 +554,35 @@ export default function AdminDashboard() {
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <div className="font-semibold text-gray-900">
-                                {booking.name}
-                              </div>
-                              <div className="text-sm text-gray-800 mt-1">
-                                {booking.email}
-                              </div>
-                              <div className="text-sm text-gray-800 mt-1">
-                                Phone: {booking.phone}
-                              </div>
-                              <div className="text-sm text-gray-700 mt-1">
-                                {format(new Date(booking.date), 'MMM dd, yyyy')} at {booking.slotTime}
-                              </div>
-                              {booking.deviceId && (
-                                <div className="text-sm text-gray-700 mt-1">
-                                  Technology: {devices.find(d => d.id === booking.deviceId)?.name || booking.deviceId}
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3">
+                                    <div className="font-semibold text-gray-900 truncate">
+                                      {booking.name}
+                                    </div>
+                                    {(booking as any).company && (
+                                      <span className="inline-flex items-center px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                        {(booking as any).company}
+                                      </span>
+                                    )}
+                                    {(booking as any).position && (
+                                      <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-800 rounded text-xs">
+                                        {(booking as any).position}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="text-sm text-gray-800 mt-1">
+                                    {booking.email}
+                                  </div>
+                                  <div className="text-sm text-gray-800 mt-1">
+                                    Phone: {booking.phone}
+                                  </div>
+                                  <div className="text-sm text-gray-700 mt-1">
+                                    {format(new Date(booking.date), 'MMM dd, yyyy')} at {booking.slotTime}
+                                  </div>
                                 </div>
-                              )}
+                              </div>
                               {booking.note && (
                                 <div className="text-sm text-gray-800 mt-2 italic">
                                   "{booking.note}"

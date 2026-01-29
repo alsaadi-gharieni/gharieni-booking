@@ -31,6 +31,9 @@ function BookEventContent() {
     phone: '',
     note: '',
     confirmedArrival: false,
+    bookingType: 'company', // 'company' or 'individual'
+    company: '',
+    position: '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [bookedSlots, setBookedSlots] = useState<Map<string, Map<string, Set<string>>>>(new Map()) // Map<date, Map<deviceId, Set<slotTime>>>
@@ -103,6 +106,18 @@ function BookEventContent() {
     if (!bookingForm.name || !bookingForm.email || !bookingForm.phone) {
       toast.error('Please fill in your name, email, and phone number')
       return
+    }
+
+    // If booking is for a company, require company and position
+    if (bookingForm.bookingType === 'company') {
+      if (!bookingForm.company || bookingForm.company.trim() === '') {
+        toast.error('Please enter your company name')
+        return
+      }
+      if (!bookingForm.position || bookingForm.position.trim() === '') {
+        toast.error('Please enter your position/profession')
+        return
+      }
     }
 
     if (!bookingForm.confirmedArrival) {
@@ -178,6 +193,9 @@ function BookEventContent() {
           name: bookingForm.name.trim(),
           email: bookingForm.email.toLowerCase().trim(),
           phone: bookingForm.phone.trim(),
+          bookingType: bookingForm.bookingType,
+          company: bookingForm.company?.trim() || undefined,
+          position: bookingForm.position?.trim() || undefined,
         }
         if (bookingForm.note && bookingForm.note.trim() !== '') {
           bookingData.note = bookingForm.note.trim()
@@ -189,6 +207,9 @@ function BookEventContent() {
           date: sel!.date!,
           slot: sel!.slot!,
           bookingId,
+          company: bookingForm.company || '',
+          position: bookingForm.position || '',
+          bookingType: bookingForm.bookingType || 'company',
         })
       }
 
@@ -215,7 +236,16 @@ function BookEventContent() {
       setSelectedSlot(null)
       setSelectedDate(null)
       setSelectedDeviceIds([])
-      setBookingForm({ name: '', email: '', phone: '', note: '', confirmedArrival: false })
+      setBookingForm({
+        name: '',
+        email: '',
+        phone: '',
+        note: '',
+        confirmedArrival: false,
+        bookingType: 'company',
+        company: '',
+        position: '',
+      })
       // Redirect to a dedicated success page (include eventId so user can rebook same event)
       router.push(`/book/success?eventId=${encodeURIComponent(eventId)}`)
     } catch (error) {
@@ -625,6 +655,70 @@ function BookEventContent() {
                   placeholder="+1 (555) 123-4567"
                 />
               </div>
+
+              {/* Booking Type: company or individual */}
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Booking for</label>
+                <div className="flex gap-4 items-center text-gray-900">
+                  <label className="inline-flex items-center gap-2 text-gray-900">
+                    <input
+                      type="radio"
+                      name="bookingType"
+                      value="company"
+                      checked={bookingForm.bookingType === 'company'}
+                      onChange={() => setBookingForm({ ...bookingForm, bookingType: 'company' })}
+                      className="w-4 h-4 text-indigo-600"
+                    />
+                    <span className="text-sm text-gray-900">Company</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-gray-900">
+                    <input
+                      type="radio"
+                      name="bookingType"
+                      value="individual"
+                      checked={bookingForm.bookingType === 'individual'}
+                      onChange={() => setBookingForm({ ...bookingForm, bookingType: 'individual' })}
+                      className="w-4 h-4 text-indigo-600"
+                    />
+                    <span className="text-sm text-gray-900">Individual</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Company & Position (required only for company bookings) */}
+              {bookingForm.bookingType === 'company' && (
+                <>
+                  <div>
+                    <label htmlFor="company" className="block text-sm font-medium text-gray-900 mb-2">
+                      Company *
+                    </label>
+                    <input
+                      id="company"
+                      type="text"
+                      required={bookingForm.bookingType === 'company'}
+                      value={bookingForm.company}
+                      onChange={(e) => setBookingForm({ ...bookingForm, company: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                      placeholder="Company name"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="position" className="block text-sm font-medium text-gray-900 mb-2">
+                      Position / Profession *
+                    </label>
+                    <input
+                      id="position"
+                      type="text"
+                      required={bookingForm.bookingType === 'company'}
+                      value={bookingForm.position}
+                      onChange={(e) => setBookingForm({ ...bookingForm, position: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                      placeholder="e.g., Manager, Therapist"
+                    />
+                  </div>
+                </>
+              )}
 
               <div>
                 <label htmlFor="note" className="block text-sm font-medium text-gray-900 mb-2">

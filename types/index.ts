@@ -31,6 +31,9 @@ export interface Booking {
   email: string;
   phone: string;
   note?: string;
+  company?: string;
+  position?: string;
+  bookingType?: 'individual' | 'company';
   createdAt: Date;
 }
 

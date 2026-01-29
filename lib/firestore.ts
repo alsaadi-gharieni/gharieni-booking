@@ -121,6 +121,9 @@ export async function getBookingsByEventId(eventId: string, deviceId?: string): 
         email: data.email,
         phone: data.phone,
         note: data.note,
+        company: data.company,
+        position: data.position,
+        bookingType: data.bookingType,
         createdAt: data.createdAt?.toDate() || new Date(),
       } as Booking;
     });
@@ -174,6 +177,9 @@ export async function getBookingBySlot(
     email: data.email,
     phone: data.phone,
     note: data.note,
+    company: data.company,
+    position: data.position,
+    bookingType: data.bookingType,
     createdAt: data.createdAt?.toDate() || new Date(),
   } as Booking;
 }
@@ -210,6 +216,9 @@ export async function getBookingByUserAtSlot(
           email: data.email,
           phone: data.phone,
           note: data.note,
+          company: data.company,
+          position: data.position,
+          bookingType: data.bookingType,
           createdAt: data.createdAt?.toDate() || new Date(),
         } as Booking;
       }
@@ -238,6 +247,9 @@ export async function getBookingByUserAtSlot(
           email: data.email,
           phone: data.phone,
           note: data.note,
+          company: data.company,
+          position: data.position,
+          bookingType: data.bookingType,
           createdAt: data.createdAt?.toDate() || new Date(),
         } as Booking;
       }
@@ -277,6 +289,9 @@ export async function checkExistingBooking(
       email: data.email,
       phone: data.phone,
       note: data.note,
+      company: data.company,
+      position: data.position,
+      bookingType: data.bookingType,
       createdAt: bookingDoc.data().createdAt?.toDate() || new Date(),
     } as Booking;
   }
@@ -302,6 +317,9 @@ export async function checkExistingBooking(
       email: data.email,
       phone: data.phone,
       note: data.note,
+      company: data.company,
+      position: data.position,
+      bookingType: data.bookingType,
       createdAt: bookingDoc.data().createdAt?.toDate() || new Date(),
     } as Booking;
   }

@@ -7,6 +7,9 @@ type BookingItem = {
   date: string
   slot: string
   bookingId?: string
+  company?: string
+  position?: string
+  bookingType?: string
 }
 
 export async function POST(req: Request) {
@@ -99,7 +102,7 @@ DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 DTSTART:${dtstart}
 DTEND:${dtend}
 SUMMARY:${b.deviceName || b.deviceId} - ${eventTitle}
-DESCRIPTION:Booking for ${b.deviceName || b.deviceId}
+DESCRIPTION:Booking for ${b.deviceName || b.deviceId}${b.company ? `\\nCompany: ${b.company}` : ''}${b.position ? `\\nPosition: ${b.position}` : ''}
 END:VEVENT`
       })
       .join('\n')
