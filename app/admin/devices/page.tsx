@@ -51,7 +51,7 @@ export default function DevicesManagement() {
     e.preventDefault()
     
     if (!formData.name.trim()) {
-      toast.error('Device name is required')
+      toast.error('Technology name is required')
       return
     }
 
@@ -120,11 +120,11 @@ export default function DevicesManagement() {
           }
           
           await updateDevice(editingDevice.id, updateData)
-          toast.success('Device updated successfully!')
+          toast.success('Technology updated successfully!')
         } catch (updateError: any) {
           console.error('Error updating device:', updateError)
           const errorMessage = updateError?.message || 'Unknown error occurred'
-          toast.error(`Failed to update device: ${errorMessage}`)
+          toast.error(`Failed to update technology: ${errorMessage}`)
           setUploadingImage(false)
           return
         }
@@ -139,8 +139,8 @@ export default function DevicesManagement() {
             link: validatedLink || undefined,
           })
         } catch (createError) {
-          console.error('Error creating device:', createError)
-          toast.error('Failed to create device. Please check your connection and try again.')
+          console.error('Error creating technology:', createError)
+          toast.error('Failed to create technology. Please check your connection and try again.')
           setUploadingImage(false)
           return
         }
@@ -156,12 +156,12 @@ export default function DevicesManagement() {
             await updateDevice(deviceId, { imageUrl })
           } catch (imageError) {
             console.error('Error uploading image:', imageError)
-            toast.error('Device created but image upload failed. You can edit the device to add the image later.')
+            toast.error('Technology created but image upload failed. You can edit the technology to add the image later.')
             // Don't return here - device was created successfully
           }
         }
         
-        toast.success('Device created successfully!')
+        toast.success('Technology created successfully!')
       }
       
       setShowForm(false)
@@ -219,11 +219,11 @@ export default function DevicesManagement() {
         }
       }
       
-      toast.success('Device deleted successfully')
+      toast.success('Technology deleted successfully')
       await loadDevices()
     } catch (error) {
       console.error('Error deleting device:', error)
-      toast.error('Failed to delete device')
+      toast.error('Failed to delete technology')
     }
   }
 
@@ -300,12 +300,12 @@ export default function DevicesManagement() {
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              {editingDevice ? 'Edit Device' : 'Add New Device'}
+              {editingDevice ? 'Edit Technology' : 'Add New Technology'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-900 mb-2">
-                  Device Name *
+                  Technology Name *
                 </label>
                 <input
                   type="text"
@@ -328,7 +328,7 @@ export default function DevicesManagement() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
-                  placeholder="Device description or notes..."
+                  placeholder="Technology description or notes..."
                 />
               </div>
 
@@ -352,14 +352,14 @@ export default function DevicesManagement() {
               {/* Image Upload */}
               <div>
                 <label htmlFor="image" className="block text-sm font-medium text-gray-900 mb-2">
-                  Device Image (optional)
+                  Technology Image (optional)
                 </label>
                 {imagePreview ? (
                   <div className="relative inline-block">
                     <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-gray-300">
                       <Image
                         src={imagePreview}
-                        alt="Device preview"
+                        alt="Technology preview"
                         fill
                         className="object-cover"
                       />
@@ -406,12 +406,12 @@ export default function DevicesManagement() {
                 >
                   Cancel
                 </button>
-                <button
+                  <button
                   type="submit"
                   disabled={uploadingImage}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {uploadingImage ? 'Uploading...' : editingDevice ? 'Update Device' : 'Create Device'}
+                  {uploadingImage ? 'Uploading...' : editingDevice ? 'Update Technology' : 'Create Technology'}
                 </button>
               </div>
             </form>
@@ -425,12 +425,12 @@ export default function DevicesManagement() {
             </h2>
             {devices.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-800 mb-4">No devices yet.</p>
+                <p className="text-gray-800 mb-4">No technologies yet.</p>
                 <button
                   onClick={() => setShowForm(true)}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                 >
-                  Create Your First Device
+                  Create Your First Technology
                 </button>
               </div>
             ) : (

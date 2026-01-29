@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { getEventById, getBookingBySlot, createBooking, getBookingByUserAtSlot, getBookingsByEventId, getDevicesByIds } from '@/lib/firestore'
 import { Event, Device } from '@/types'
 import toast from 'react-hot-toast'
@@ -12,6 +12,7 @@ function BookEventContent() {
   const searchParams = useSearchParams()
   // Get eventId from query parameter (e.g., /book?eventId=abc123)
   const eventId = searchParams?.get('eventId') || ''
+  const router = useRouter()
   
   const [event, setEvent] = useState<Event | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
@@ -95,7 +96,7 @@ function BookEventContent() {
     e.preventDefault()
     
     if (!allDevicesHaveSelection) {
-      toast.error('Please select a date and time slot for each selected device')
+      toast.error('Please select a date and time slot for each selected technology')
       return
     }
 
@@ -129,7 +130,7 @@ function BookEventContent() {
       for (const deviceId of selectedDeviceIds) {
         const sel = selectedDeviceBookings[deviceId]
         if (!sel || !sel.date || !sel.slot) {
-          toast.error('Missing date/slot for one of the selected devices')
+          toast.error('Missing date/slot for one of the selected technologies')
           setSubmitting(false)
           return
         }
@@ -166,6 +167,7 @@ function BookEventContent() {
       }
 
       // Create one booking per selected device using each device's selected date/slot
+      const createdBookings = []
       for (const deviceId of selectedDeviceIds) {
         const sel = selectedDeviceBookings[deviceId]
         const bookingData: any = {
@@ -180,7 +182,32 @@ function BookEventContent() {
         if (bookingForm.note && bookingForm.note.trim() !== '') {
           bookingData.note = bookingForm.note.trim()
         }
-        await createBooking(bookingData)
+        const bookingId = await createBooking(bookingData)
+        createdBookings.push({
+          deviceId,
+          deviceName: devices.find(d => d.id === deviceId)?.name || deviceId,
+          date: sel!.date!,
+          slot: sel!.slot!,
+          bookingId,
+        })
+      }
+
+      // Send confirmation email (best-effort)
+      try {
+        await fetch('/api/send-booking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: bookingForm.name.trim(),
+            email: bookingForm.email.toLowerCase().trim(),
+            phone: bookingForm.phone.trim(),
+            eventTitle: event?.title || '',
+            bookings: createdBookings,
+            note: bookingForm.note?.trim() || '',
+          }),
+        })
+      } catch (emailErr) {
+        console.warn('Failed to send confirmation email', emailErr)
       }
 
       toast.success('Booking confirmed!')
@@ -189,6 +216,8 @@ function BookEventContent() {
       setSelectedDate(null)
       setSelectedDeviceIds([])
       setBookingForm({ name: '', email: '', phone: '', note: '', confirmedArrival: false })
+      // Redirect to a dedicated success page (include eventId so user can rebook same event)
+      router.push(`/book/success?eventId=${encodeURIComponent(eventId)}`)
     } catch (error) {
       console.error('Error creating booking:', error)
       toast.error('Failed to create booking. Please try again.')
@@ -240,7 +269,7 @@ function BookEventContent() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">{event.title}</h1>
-          <p className="text-gray-800 mb-4">This event is not configured with any devices. Please contact the administrator.</p>
+          <p className="text-gray-800 mb-4">This event is not configured with any technologies. Please contact the administrator.</p>
           <div className="mb-6 flex justify-center">
             {event.companyLogo ? (
               <img src={event.companyLogo} alt="Company Logo" className="h-20 object-contain" />

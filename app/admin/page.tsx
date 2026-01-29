@@ -236,7 +236,7 @@ export default function AdminDashboard() {
           'Phone': booking.phone,
           'Date': format(new Date(booking.date), 'MMM dd, yyyy'),
           'Time': booking.slotTime,
-          'Device': device?.name || booking.deviceId || 'N/A',
+          'Technology': device?.name || booking.deviceId || 'N/A',
           'Note': booking.note || '',
           'Booking ID': booking.id,
           'Created At': format(booking.createdAt, 'MMM dd, yyyy HH:mm'),
@@ -255,7 +255,7 @@ export default function AdminDashboard() {
         { wch: 15 }, // Phone
         { wch: 15 }, // Date
         { wch: 10 }, // Time
-        { wch: 25 }, // Device
+        { wch: 25 }, // Technology
         { wch: 30 }, // Note
         { wch: 30 }, // Booking ID
         { wch: 20 }, // Created At
@@ -461,7 +461,7 @@ export default function AdminDashboard() {
                 
                 {/* Availability Overview */}
                 <div className="bg-white rounded-lg p-6 mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Availability by Date and Device</h3>
+                  <h3 className="font-semibold text-gray-900 mb-4">Availability by Date and Technology</h3>
                   <div className="space-y-6">
                     {selectedEvent.eventDates.map((date) => {
                       const dateBookings = bookings.filter(b => b.date === date)
@@ -472,7 +472,7 @@ export default function AdminDashboard() {
                             {format(new Date(date), 'EEEE, MMMM dd, yyyy')}
                           </h4>
                           {devices.length === 0 ? (
-                            <p className="text-sm text-gray-600">No devices attached to this event</p>
+                            <p className="text-sm text-gray-600">No technologies attached to this event</p>
                           ) : (
                             <div className="space-y-4">
                               {devices.map((device) => {
@@ -564,7 +564,7 @@ export default function AdminDashboard() {
                               </div>
                               {booking.deviceId && (
                                 <div className="text-sm text-gray-700 mt-1">
-                                  Device: {devices.find(d => d.id === booking.deviceId)?.name || booking.deviceId}
+                                  Technology: {devices.find(d => d.id === booking.deviceId)?.name || booking.deviceId}
                                 </div>
                               )}
                               {booking.note && (

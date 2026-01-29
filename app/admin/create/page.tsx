@@ -40,7 +40,7 @@ export default function CreateEvent() {
       setDevices(devicesData)
     } catch (error) {
       console.error('Error loading devices:', error)
-      toast.error('Failed to load devices')
+      toast.error('Failed to load technologies')
     } finally {
       setLoadingDevices(false)
     }
@@ -166,7 +166,7 @@ export default function CreateEvent() {
       )
 
       if (formData.deviceIds.length === 0) {
-        toast.error('Please select at least one device for this event')
+        toast.error('Please select at least one technology for this event')
         setLoading(false)
         return
       }
@@ -388,14 +388,14 @@ export default function CreateEvent() {
             {/* Device Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">
-                Select Devices * (At least one device required)
+                Select Technologies * (At least one technology required)
               </label>
               {loadingDevices ? (
                 <p className="text-sm text-gray-600">Loading devices...</p>
               ) : devices.length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-yellow-900 text-sm mb-2">
-                    No devices available. Please create devices first.
+                    No technologies available. Please create technologies first.
                   </p>
                   <Link
                     href="/admin/devices"
@@ -465,11 +465,11 @@ export default function CreateEvent() {
                     })}
                   </div>
                   {formData.deviceIds.length === 0 && (
-                    <p className="text-sm text-red-600 mt-2">Please select at least one device</p>
+                    <p className="text-sm text-red-600 mt-2">Please select at least one technology</p>
                   )}
                   {formData.deviceIds.length > 0 && (
                     <p className="text-sm text-gray-600 mt-2">
-                      {formData.deviceIds.length} device{formData.deviceIds.length !== 1 ? 's' : ''} selected
+                      {formData.deviceIds.length} technology{formData.deviceIds.length !== 1 ? 's' : ''} selected
                     </p>
                   )}
                 </div>
