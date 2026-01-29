@@ -20,6 +20,7 @@ export default function DevicesManagement() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    link: '',
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -54,6 +55,22 @@ export default function DevicesManagement() {
       return
     }
 
+    // Validate URL if provided
+    let validatedLink = formData.link.trim()
+    if (validatedLink) {
+      try {
+        // Add protocol if missing
+        const urlWithProtocol = validatedLink.startsWith('http://') || validatedLink.startsWith('https://') 
+          ? validatedLink 
+          : `https://${validatedLink}`
+        new URL(urlWithProtocol)
+        validatedLink = urlWithProtocol
+      } catch (urlError) {
+        toast.error('Please enter a valid URL (e.g., https://example.com)')
+        return
+      }
+    }
+
     try {
       setUploadingImage(true)
       let imageUrl: string | undefined = editingDevice?.imageUrl
@@ -64,43 +81,84 @@ export default function DevicesManagement() {
         
         // Upload new image if one was selected
         if (imageFile) {
-          const fileExtension = imageFile.name.split('.').pop() || 'jpg'
-          const imagePath = getDeviceImagePath(editingDevice.id, `image.${fileExtension}`)
-          imageUrl = await uploadImage(imageFile, imagePath)
-          
-          // Delete old image if it exists and is different
-          if (oldImageUrl && oldImageUrl !== imageUrl) {
-            const oldPath = extractStoragePathFromUrl(oldImageUrl)
-            if (oldPath) {
-              await deleteImage(oldPath).catch(err => {
-                console.warn('Failed to delete old image:', err)
-              })
+          try {
+            const fileExtension = imageFile.name.split('.').pop() || 'jpg'
+            const imagePath = getDeviceImagePath(editingDevice.id, `image.${fileExtension}`)
+            imageUrl = await uploadImage(imageFile, imagePath)
+            
+            // Delete old image if it exists and is different
+            if (oldImageUrl && oldImageUrl !== imageUrl) {
+              const oldPath = extractStoragePathFromUrl(oldImageUrl)
+              if (oldPath) {
+                await deleteImage(oldPath).catch(err => {
+                  console.warn('Failed to delete old image:', err)
+                })
+              }
             }
+          } catch (imageError) {
+            console.error('Error uploading image:', imageError)
+            toast.error('Failed to upload image. Please try again.')
+            setUploadingImage(false)
+            return
           }
         }
         
-        await updateDevice(editingDevice.id, {
-          name: formData.name.trim(),
-          description: formData.description.trim() || undefined,
-          imageUrl: imageUrl,
-        })
-        toast.success('Device updated successfully!')
+        try {
+          const updateData: any = {
+            name: formData.name.trim(),
+          }
+          
+          // Only include fields that have values
+          if (formData.description.trim()) {
+            updateData.description = formData.description.trim()
+          }
+          if (imageUrl) {
+            updateData.imageUrl = imageUrl
+          }
+          if (validatedLink) {
+            updateData.link = validatedLink
+          }
+          
+          await updateDevice(editingDevice.id, updateData)
+          toast.success('Device updated successfully!')
+        } catch (updateError: any) {
+          console.error('Error updating device:', updateError)
+          const errorMessage = updateError?.message || 'Unknown error occurred'
+          toast.error(`Failed to update device: ${errorMessage}`)
+          setUploadingImage(false)
+          return
+        }
       } else {
         // Creating new device
-        // First create the device without image
-        const deviceId = await createDevice({
-          name: formData.name.trim(),
-          description: formData.description.trim() || undefined,
-        })
+        let deviceId: string
+        try {
+          // First create the device without image
+          deviceId = await createDevice({
+            name: formData.name.trim(),
+            description: formData.description.trim() || undefined,
+            link: validatedLink || undefined,
+          })
+        } catch (createError) {
+          console.error('Error creating device:', createError)
+          toast.error('Failed to create device. Please check your connection and try again.')
+          setUploadingImage(false)
+          return
+        }
         
         // Then upload image if provided
         if (imageFile) {
-          const fileExtension = imageFile.name.split('.').pop() || 'jpg'
-          const imagePath = getDeviceImagePath(deviceId, `image.${fileExtension}`)
-          imageUrl = await uploadImage(imageFile, imagePath)
-          
-          // Update device with image URL
-          await updateDevice(deviceId, { imageUrl })
+          try {
+            const fileExtension = imageFile.name.split('.').pop() || 'jpg'
+            const imagePath = getDeviceImagePath(deviceId, `image.${fileExtension}`)
+            imageUrl = await uploadImage(imageFile, imagePath)
+            
+            // Update device with image URL
+            await updateDevice(deviceId, { imageUrl })
+          } catch (imageError) {
+            console.error('Error uploading image:', imageError)
+            toast.error('Device created but image upload failed. You can edit the device to add the image later.')
+            // Don't return here - device was created successfully
+          }
         }
         
         toast.success('Device created successfully!')
@@ -108,13 +166,14 @@ export default function DevicesManagement() {
       
       setShowForm(false)
       setEditingDevice(null)
-      setFormData({ name: '', description: '' })
+      setFormData({ name: '', description: '', link: '' })
       setImageFile(null)
       setImagePreview(null)
       await loadDevices()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving device:', error)
-      toast.error('Failed to save device')
+      const errorMessage = error?.message || 'Unknown error occurred'
+      toast.error(`Failed to save device: ${errorMessage}`)
     } finally {
       setUploadingImage(false)
     }
@@ -125,6 +184,7 @@ export default function DevicesManagement() {
     setFormData({
       name: device.name,
       description: device.description || '',
+      link: device.link || '',
     })
     setImageFile(null)
     setImagePreview(device.imageUrl || null)
@@ -170,7 +230,7 @@ export default function DevicesManagement() {
   const handleCancel = () => {
     setShowForm(false)
     setEditingDevice(null)
-    setFormData({ name: '', description: '' })
+    setFormData({ name: '', description: '', link: '' })
     setImageFile(null)
     setImagePreview(null)
   }
@@ -218,7 +278,7 @@ export default function DevicesManagement() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Device Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Technologies List</h1>
           <div className="flex gap-4">
             <Link
               href="/admin"
@@ -231,7 +291,7 @@ export default function DevicesManagement() {
                 onClick={() => setShowForm(true)}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
-                + Add Device
+                + Add Technology
               </button>
             )}
           </div>
@@ -270,6 +330,23 @@ export default function DevicesManagement() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
                   placeholder="Device description or notes..."
                 />
+              </div>
+
+              <div>
+                <label htmlFor="link" className="block text-sm font-medium text-gray-900 mb-2">
+                  Learn More Link (optional)
+                </label>
+                <input
+                  type="url"
+                  id="link"
+                  value={formData.link}
+                  onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                  placeholder="https://example.com/technology-info"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Add a link where users can learn more about this technology
+                </p>
               </div>
 
               {/* Image Upload */}
@@ -344,7 +421,7 @@ export default function DevicesManagement() {
         <div className="bg-white rounded-lg shadow">
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              All Devices ({devices.length})
+              All Technologies ({devices.length})
             </h2>
             {devices.length === 0 ? (
               <div className="text-center py-12">
@@ -375,10 +452,21 @@ export default function DevicesManagement() {
                             />
                           </div>
                         )}
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 text-lg">{device.name}</h3>
+                        <div className="flex-1 relative">
+                          <h3 className="font-semibold text-gray-900 text-lg pr-24">{device.name}</h3>
                           {device.description && (
                             <p className="text-sm text-gray-700 mt-1">{device.description}</p>
+                          )}
+                          {device.link && (
+                            <a
+                              href={device.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="absolute bottom-0 right-0 px-3 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md text-xs font-medium transition-all shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              🔗 Learn More
+                            </a>
                           )}
                           <p className="text-xs text-gray-500 mt-2">
                             Created: {new Date(device.createdAt).toLocaleDateString()}

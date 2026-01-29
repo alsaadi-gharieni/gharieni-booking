@@ -3,6 +3,7 @@ export interface Device {
   name: string;
   description?: string;
   imageUrl?: string;
+  link?: string; // Optional hyperlink to learn more about the technology
   createdAt: Date;
 }
 
@@ -16,6 +17,7 @@ export interface Event {
   deviceIds: string[]; // Array of device IDs attached to this event
   createdAt: Date;
   companyLogo?: string;
+  location?: string; // Google Maps link or location URL
   enabled?: boolean; // Whether the event is enabled for bookings (default: true)
 }
 

@@ -38,6 +38,7 @@ export async function getAllEvents(): Promise<Event[]> {
       id: doc.id,
       ...data,
       deviceIds: data.deviceIds || [],
+      location: data.location,
       enabled: data.enabled !== undefined ? data.enabled : true,
       createdAt: data.createdAt?.toDate() || new Date(),
     } as Event;
@@ -58,6 +59,7 @@ export async function getEventById(eventId: string): Promise<Event | null> {
     id: docSnap.id,
     ...data,
     deviceIds: data.deviceIds || [],
+    location: data.location,
     enabled: data.enabled !== undefined ? data.enabled : true,
     createdAt: data.createdAt?.toDate() || new Date(),
   } as Event;
@@ -253,6 +255,7 @@ export async function getAllDevices(): Promise<Device[]> {
       name: data.name,
       description: data.description,
       imageUrl: data.imageUrl,
+      link: data.link,
       createdAt: data.createdAt?.toDate() || new Date(),
     } as Device;
   });
@@ -272,13 +275,24 @@ export async function getDeviceById(deviceId: string): Promise<Device | null> {
     name: data.name,
     description: data.description,
     imageUrl: data.imageUrl,
+    link: data.link,
     createdAt: data.createdAt?.toDate() || new Date(),
   } as Device;
 }
 
 export async function updateDevice(deviceId: string, deviceData: Partial<Omit<Device, 'id' | 'createdAt'>>): Promise<void> {
   const docRef = doc(db, 'devices', deviceId);
-  await updateDoc(docRef, deviceData);
+  
+  // Filter out undefined values - Firestore doesn't accept undefined
+  const cleanData: any = {};
+  Object.keys(deviceData).forEach(key => {
+    const value = (deviceData as any)[key];
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
+  });
+  
+  await updateDoc(docRef, cleanData);
 }
 
 export async function deleteDevice(deviceId: string): Promise<void> {

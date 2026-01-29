@@ -217,6 +217,65 @@ export default function AdminDashboard() {
     router.push('/admin/login')
   }
 
+  const exportToExcel = async () => {
+    if (!selectedEvent || bookings.length === 0) {
+      toast.error('No bookings to export')
+      return
+    }
+
+    try {
+      // Dynamically import xlsx to avoid SSR issues
+      const XLSX = await import('xlsx')
+      
+      // Prepare data for Excel
+      const excelData = bookings.map((booking) => {
+        const device = devices.find(d => d.id === booking.deviceId)
+        return {
+          'Name': booking.name,
+          'Email': booking.email,
+          'Phone': booking.phone,
+          'Date': format(new Date(booking.date), 'MMM dd, yyyy'),
+          'Time': booking.slotTime,
+          'Device': device?.name || booking.deviceId || 'N/A',
+          'Note': booking.note || '',
+          'Booking ID': booking.id,
+          'Created At': format(booking.createdAt, 'MMM dd, yyyy HH:mm'),
+        }
+      })
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Bookings')
+
+      // Set column widths
+      const colWidths = [
+        { wch: 20 }, // Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 15 }, // Date
+        { wch: 10 }, // Time
+        { wch: 25 }, // Device
+        { wch: 30 }, // Note
+        { wch: 30 }, // Booking ID
+        { wch: 20 }, // Created At
+      ]
+      ws['!cols'] = colWidths
+
+      // Generate filename with event title and current date
+      const eventTitle = selectedEvent.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+      const currentDate = format(new Date(), 'yyyy-MM-dd')
+      const filename = `${eventTitle}_bookings_${currentDate}.xlsx`
+
+      // Save file
+      XLSX.writeFile(wb, filename)
+      toast.success(`Exported ${bookings.length} booking(s) to Excel`)
+    } catch (error) {
+      console.error('Error exporting to Excel:', error)
+      toast.error('Failed to export bookings. Please install xlsx package: npm install xlsx')
+    }
+  }
+
   if (!authChecked || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -251,7 +310,7 @@ export default function AdminDashboard() {
               href="/admin/devices"
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition-colors"
             >
-              Manage Devices
+              Technologies List
             </Link>
             <Link
               href="/admin/create"
@@ -457,10 +516,23 @@ export default function AdminDashboard() {
                 {/* Bookings List */}
                 <div className="bg-white rounded-lg p-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-gray-900">All Bookings</h3>
-                    <span className="text-sm text-gray-600">
-                      ({bookings.length} booking{bookings.length !== 1 ? 's' : ''})
-                    </span>
+                    <div className="flex items-center gap-4">
+                      <h3 className="font-semibold text-gray-900">All Bookings</h3>
+                      <span className="text-sm text-gray-600">
+                        ({bookings.length} booking{bookings.length !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    {bookings.length > 0 && (
+                      <button
+                        onClick={exportToExcel}
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium shadow-sm hover:shadow-md flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export to Excel
+                      </button>
+                    )}
                   </div>
                   {bookings.length === 0 ? (
                     <div>

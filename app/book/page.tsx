@@ -24,6 +24,7 @@ function BookEventContent() {
     email: '',
     phone: '',
     note: '',
+    confirmedArrival: false,
   })
   const [submitting, setSubmitting] = useState(false)
   const [bookedSlots, setBookedSlots] = useState<Map<string, Map<string, Set<string>>>>(new Map()) // Map<date, Map<deviceId, Set<slotTime>>>
@@ -98,6 +99,11 @@ function BookEventContent() {
       return
     }
 
+    if (!bookingForm.confirmedArrival) {
+      toast.error('Please confirm that you will arrive 15 minutes early')
+      return
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(bookingForm.email)) {
       toast.error('Please enter a valid email address')
@@ -161,7 +167,7 @@ function BookEventContent() {
       setSelectedSlot(null)
       setSelectedDate(null)
       setSelectedDeviceId(null)
-      setBookingForm({ name: '', email: '', phone: '', note: '' })
+      setBookingForm({ name: '', email: '', phone: '', note: '', confirmedArrival: false })
     } catch (error) {
       console.error('Error creating booking:', error)
       toast.error('Failed to create booking. Please try again.')
@@ -279,6 +285,22 @@ function BookEventContent() {
           <p className="text-lg text-gray-800 mb-6 text-center">
             {event.description}
           </p>
+          {event.location && (
+            <div className="flex justify-center mb-4">
+              <a
+                href={event.location}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all font-medium shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                View Location
+              </a>
+            </div>
+          )}
           <div className="text-center text-gray-800">
             <p className="font-semibold mb-2">Available Dates:</p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -317,7 +339,7 @@ function BookEventContent() {
                     type="button"
                     disabled={!hasAvailability}
                     onClick={() => handleDeviceSelect(device.id)}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    className={`p-4 rounded-lg border-2 transition-all text-left relative ${
                       !hasAvailability
                         ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
                         : isSelected
@@ -325,6 +347,21 @@ function BookEventContent() {
                         : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
                     }`}
                   >
+                    {device.link && (
+                      <a
+                        href={device.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`absolute bottom-2 right-2 px-2 py-1 rounded-md text-xs font-medium shadow-lg backdrop-blur-sm transition-all z-10 ${
+                          isSelected
+                            ? 'bg-white/90 text-indigo-600 hover:bg-white'
+                            : 'bg-indigo-600/90 text-white hover:bg-indigo-700'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        🔗 Learn More
+                      </a>
+                    )}
                     <div className="flex flex-col items-center gap-3">
                       {device.imageUrl && (
                         <div className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-lg overflow-hidden border-2 border-gray-200">
@@ -525,9 +562,29 @@ function BookEventContent() {
                 )}
               </div>
 
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bookingForm.confirmedArrival}
+                    onChange={(e) => setBookingForm({ ...bookingForm, confirmedArrival: e.target.checked })}
+                    className="mt-1 w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    required
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">
+                      I confirm that I will arrive at least 15 minutes before my scheduled booking time. *
+                    </span>
+                    <p className="text-xs text-gray-700 mt-1">
+                      I understand that late arrival may result in the booking being canceled and made available to another guest.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !bookingForm.confirmedArrival}
                 className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
               >
                 {submitting ? 'Booking...' : 'Confirm Booking'}

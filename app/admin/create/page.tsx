@@ -79,6 +79,7 @@ export default function CreateEvent() {
         startTime: startTime,
         endTime: calculatedEndTime,
         deviceIds: event.deviceIds || [],
+        location: event.location || '',
       })
     } catch (error) {
       console.error('Error loading event:', error)
@@ -110,6 +111,7 @@ export default function CreateEvent() {
     startTime: '09:00',
     endTime: '17:00',
     deviceIds: [] as string[],
+    location: '',
   })
   const [dateInput, setDateInput] = useState('')
   const [devices, setDevices] = useState<Device[]>([])
@@ -176,6 +178,7 @@ export default function CreateEvent() {
         slotDuration: formData.slotDuration,
         availableSlots,
         deviceIds: formData.deviceIds,
+        location: formData.location.trim() || undefined,
       }
 
       if (isEditMode && eventId) {
@@ -259,6 +262,24 @@ export default function CreateEvent() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
                 placeholder="Describe your event..."
               />
+            </div>
+
+            {/* Location */}
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium text-gray-900 mb-2">
+                Location (optional)
+              </label>
+              <input
+                type="url"
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                placeholder="https://maps.google.com/..."
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Paste a Google Maps link or any location URL
+              </p>
             </div>
 
             {/* Event Dates */}
@@ -380,7 +401,7 @@ export default function CreateEvent() {
                     href="/admin/devices"
                     className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
                   >
-                    Go to Device Management →
+                    Go to Technologies List →
                   </Link>
                 </div>
               ) : (
@@ -421,10 +442,21 @@ export default function CreateEvent() {
                                 />
                               </div>
                             )}
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 relative">
                               <div className="font-semibold text-gray-900">{device.name}</div>
                               {device.description && (
                                 <div className="text-xs text-gray-600 mt-1">{device.description}</div>
+                              )}
+                              {device.link && (
+                                <a
+                                  href={device.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute bottom-0 right-0 px-2 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md text-xs font-medium transition-all"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  🔗 Learn More
+                                </a>
                               )}
                             </div>
                           </div>
