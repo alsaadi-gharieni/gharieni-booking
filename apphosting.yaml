@@ -1,0 +1,15 @@
+runtime: nodejs16
+service: nextjs
+env: flex
+env_variables:
+  NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyBnkHo7K8jpFazKBhUa3KGOHaixGSsYksk"
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "gharieni-booking.firebaseapp.com"
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "gharieni-booking"
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "gharieni-booking.firebasestorage.app"
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "<REPLACE_WITH_VALUE>"
+  NEXT_PUBLIC_FIREBASE_APP_ID: "<REPLACE_WITH_VALUE>"
+
+# Note:
+# - Replace the placeholder values above with your actual Firebase public keys before deployment.
+# - If you're deploying to Cloud Run / Firebase Hosting rewrites to a Cloud Run service,
+#   configure environment variables in your Cloud Run service or CI/CD instead of committing secrets.

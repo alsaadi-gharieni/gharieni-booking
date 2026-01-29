@@ -178,6 +178,78 @@ export async function getBookingBySlot(
   } as Booking;
 }
 
+// Check if a user (by email or phone) already has a booking at a specific date+slot for the event
+export async function getBookingByUserAtSlot(
+  eventId: string,
+  date: string,
+  slotTime: string,
+  email?: string,
+  phone?: string
+): Promise<Booking | null> {
+  try {
+    // Check by email if provided
+    if (email) {
+      const emailQ = query(
+        bookingsCollection,
+        where('eventId', '==', eventId),
+        where('date', '==', date),
+        where('slotTime', '==', slotTime),
+        where('email', '==', email.toLowerCase().trim())
+      );
+      const emailSnap = await getDocs(emailQ);
+      if (!emailSnap.empty) {
+        const bookingDoc = emailSnap.docs[0];
+        const data = bookingDoc.data();
+        return {
+          id: bookingDoc.id,
+          eventId: data.eventId,
+          deviceId: data.deviceId,
+          slotTime: data.slotTime,
+          date: data.date,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          note: data.note,
+          createdAt: data.createdAt?.toDate() || new Date(),
+        } as Booking;
+      }
+    }
+
+    // Check by phone if provided
+    if (phone) {
+      const phoneQ = query(
+        bookingsCollection,
+        where('eventId', '==', eventId),
+        where('date', '==', date),
+        where('slotTime', '==', slotTime),
+        where('phone', '==', phone.trim())
+      );
+      const phoneSnap = await getDocs(phoneQ);
+      if (!phoneSnap.empty) {
+        const bookingDoc = phoneSnap.docs[0];
+        const data = bookingDoc.data();
+        return {
+          id: bookingDoc.id,
+          eventId: data.eventId,
+          deviceId: data.deviceId,
+          slotTime: data.slotTime,
+          date: data.date,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          note: data.note,
+          createdAt: data.createdAt?.toDate() || new Date(),
+        } as Booking;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error checking user booking at slot:', error);
+    throw error;
+  }
+}
+
 // Check if email or phone already exists for this event
 export async function checkExistingBooking(
   eventId: string,
