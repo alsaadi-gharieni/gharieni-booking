@@ -21,7 +21,10 @@ export const devicesCollection = collection(db, 'devices');
 
 // Create a new event
 export async function createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): Promise<string> {
-  // Filter out undefined values (Firestore doesn't accept undefined)
+  // Filter out undefined, null, and empty string values (Firestore doesn't accept undefined)
+  // Optional string fields should be omitted if empty
+  const optionalStringFields = ['location', 'companyLogo'];
+  
   const cleanData: any = {
     enabled: eventData.enabled !== undefined ? eventData.enabled : true,
     createdAt: Timestamp.now(),
@@ -29,9 +32,18 @@ export async function createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): P
   
   Object.keys(eventData).forEach(key => {
     const value = (eventData as any)[key];
-    if (value !== undefined) {
-      cleanData[key] = value;
+    
+    // Skip undefined and null
+    if (value === undefined || value === null) {
+      return;
     }
+    
+    // For optional string fields, skip empty strings
+    if (optionalStringFields.includes(key) && typeof value === 'string' && value.trim() === '') {
+      return;
+    }
+    
+    cleanData[key] = value;
   });
   
   const docRef = await addDoc(eventsCollection, cleanData);
@@ -76,13 +88,25 @@ export async function getEventById(eventId: string): Promise<Event | null> {
 
 // Update an event
 export async function updateEvent(eventId: string, eventData: Partial<Omit<Event, 'id' | 'createdAt'>>): Promise<void> {
-  // Filter out undefined values (Firestore doesn't accept undefined)
+  // Filter out undefined, null, and empty string values (Firestore doesn't accept undefined)
+  // Optional string fields should be omitted if empty
+  const optionalStringFields = ['location', 'companyLogo'];
+  
   const cleanData: any = {};
   Object.keys(eventData).forEach(key => {
     const value = (eventData as any)[key];
-    if (value !== undefined) {
-      cleanData[key] = value;
+    
+    // Skip undefined and null
+    if (value === undefined || value === null) {
+      return;
     }
+    
+    // For optional string fields, skip empty strings
+    if (optionalStringFields.includes(key) && typeof value === 'string' && value.trim() === '') {
+      return;
+    }
+    
+    cleanData[key] = value;
   });
   
   const docRef = doc(db, 'events', eventId);
