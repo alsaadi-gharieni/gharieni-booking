@@ -21,11 +21,20 @@ export const devicesCollection = collection(db, 'devices');
 
 // Create a new event
 export async function createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(eventsCollection, {
-    ...eventData,
+  // Filter out undefined values (Firestore doesn't accept undefined)
+  const cleanData: any = {
     enabled: eventData.enabled !== undefined ? eventData.enabled : true,
     createdAt: Timestamp.now(),
+  };
+  
+  Object.keys(eventData).forEach(key => {
+    const value = (eventData as any)[key];
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
   });
+  
+  const docRef = await addDoc(eventsCollection, cleanData);
   return docRef.id;
 }
 
@@ -67,8 +76,17 @@ export async function getEventById(eventId: string): Promise<Event | null> {
 
 // Update an event
 export async function updateEvent(eventId: string, eventData: Partial<Omit<Event, 'id' | 'createdAt'>>): Promise<void> {
+  // Filter out undefined values (Firestore doesn't accept undefined)
+  const cleanData: any = {};
+  Object.keys(eventData).forEach(key => {
+    const value = (eventData as any)[key];
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
+  });
+  
   const docRef = doc(db, 'events', eventId);
-  await updateDoc(docRef, eventData);
+  await updateDoc(docRef, cleanData);
 }
 
 // Toggle event enabled/disabled status
@@ -91,10 +109,19 @@ export async function deleteBooking(bookingId: string): Promise<void> {
 
 // Create a booking
 export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(bookingsCollection, {
-    ...bookingData,
+  // Filter out undefined values (Firestore doesn't accept undefined)
+  const cleanData: any = {
     createdAt: Timestamp.now(),
+  };
+  
+  Object.keys(bookingData).forEach(key => {
+    const value = (bookingData as any)[key];
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
   });
+  
+  const docRef = await addDoc(bookingsCollection, cleanData);
   return docRef.id;
 }
 

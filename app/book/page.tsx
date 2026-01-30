@@ -141,7 +141,10 @@ function BookEventContent() {
     setSubmitting(true)
 
     try {
-      // Double-check slot availability for each selected device (use per-device selection)
+      // Validate that all selected dates/slots are not in the past
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      
       for (const deviceId of selectedDeviceIds) {
         const sel = selectedDeviceBookings[deviceId]
         if (!sel || !sel.date || !sel.slot) {
@@ -149,6 +152,29 @@ function BookEventContent() {
           setSubmitting(false)
           return
         }
+        
+        const eventDate = new Date(sel.date)
+        const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+        
+        // Check if date is in the past
+        if (eventDateOnly < today) {
+          toast.error('Cannot book a date in the past. Please select a future date.')
+          setSubmitting(false)
+          return
+        }
+        
+        // If date is today, check if slot time has passed
+        if (eventDateOnly.getTime() === today.getTime()) {
+          const [slotHour, slotMin] = sel.slot.split(':').map(Number)
+          const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHour, slotMin)
+          if (slotTime <= now) {
+            toast.error('Cannot book a time slot that has already passed. Please select a future time slot.')
+            setSubmitting(false)
+            return
+          }
+        }
+        
+        // Double-check slot availability for each selected device (use per-device selection)
         const existingBooking = await getBookingBySlot(
           eventId,
           sel.date,
@@ -194,8 +220,13 @@ function BookEventContent() {
           email: bookingForm.email.toLowerCase().trim(),
           phone: bookingForm.phone.trim(),
           bookingType: bookingForm.bookingType,
-          company: bookingForm.company?.trim() || undefined,
-          position: bookingForm.position?.trim() || undefined,
+        }
+        // Only include company and position if they have values
+        if (bookingForm.company?.trim()) {
+          bookingData.company = bookingForm.company.trim()
+        }
+        if (bookingForm.position?.trim()) {
+          bookingData.position = bookingForm.position.trim()
         }
         if (bookingForm.note && bookingForm.note.trim() !== '') {
           bookingData.note = bookingForm.note.trim()
@@ -312,11 +343,65 @@ function BookEventContent() {
     )
   }
 
+  // Check if all event dates have passed
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const allDatesPassed = event.eventDates.every(date => {
+    const eventDate = new Date(date)
+    const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    return eventDateOnly < today
+  })
+
+  if (allDatesPassed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{event.title}</h1>
+          <p className="text-gray-800 mb-4">This event has ended. All booking dates have passed.</p>
+          <div className="mb-6 flex justify-center">
+            {event.companyLogo ? (
+              <img src={event.companyLogo} alt="Company Logo" className="h-20 object-contain" />
+            ) : (
+              <img src="/images/logo-dark.png" alt="Logo" className="h-20 object-contain" />
+            )}
+          </div>
+          <a
+            href="/"
+            className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+          >
+            Back to Home
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   const getAvailableSlotsForDate = (date: string, deviceId: string) => {
     if (!deviceId) return []
     const dateMap = bookedSlots.get(date) || new Map<string, Set<string>>()
     const bookedForDevice = dateMap.get(deviceId) || new Set<string>()
-    return event.availableSlots.filter(slot => !bookedForDevice.has(slot))
+    
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const eventDate = new Date(date)
+    const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    
+    // If the date is today, filter out past time slots
+    const isToday = eventDateOnly.getTime() === today.getTime()
+    
+    return event.availableSlots.filter(slot => {
+      // Skip if already booked
+      if (bookedForDevice.has(slot)) return false
+      
+      // If today, check if the slot time has passed
+      if (isToday) {
+        const [slotHour, slotMin] = slot.split(':').map(Number)
+        const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHour, slotMin)
+        if (slotTime <= now) return false
+      }
+      
+      return true
+    })
   }
 
   const isSlotBooked = (date: string, slot: string, deviceId: string) => {
@@ -327,7 +412,16 @@ function BookEventContent() {
 
   const getAvailableDatesForDevice = (deviceId: string) => {
     if (!deviceId) return []
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    
     return event.eventDates.filter(date => {
+      const eventDate = new Date(date)
+      const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+      
+      // Filter out past dates
+      if (eventDateOnly < today) return false
+      
       const availableSlots = getAvailableSlotsForDate(date, deviceId)
       return availableSlots.length > 0
     })

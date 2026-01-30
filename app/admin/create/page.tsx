@@ -178,7 +178,11 @@ export default function CreateEvent() {
         slotDuration: formData.slotDuration,
         availableSlots,
         deviceIds: formData.deviceIds,
-        location: formData.location.trim() || undefined,
+      }
+      
+      // Only include location if it has a value
+      if (formData.location.trim()) {
+        eventData.location = formData.location.trim()
       }
 
       if (isEditMode && eventId) {
