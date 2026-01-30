@@ -171,6 +171,10 @@ export default function CreateEvent() {
         return
       }
 
+      // Build eventData object - only include location if it has a valid value
+      const locationValue = formData.location?.trim()
+      const hasLocation = locationValue && locationValue.length > 0
+      
       const eventData: any = {
         title: formData.title,
         description: formData.description,
@@ -180,10 +184,11 @@ export default function CreateEvent() {
         deviceIds: formData.deviceIds,
       }
       
-      // Only include location if it has a value
-      if (formData.location.trim()) {
-        eventData.location = formData.location.trim()
+      // ONLY add location if it has a valid value - never set it to undefined or empty
+      if (hasLocation) {
+        eventData.location = locationValue
       }
+      // Explicitly do NOT add location to the object if it's empty/undefined
 
       if (isEditMode && eventId) {
         // Update existing event
@@ -193,6 +198,10 @@ export default function CreateEvent() {
       } else {
         // Create new event
         eventData.enabled = true // Events are enabled by default
+        // One more check before creating
+        if (eventData.location === undefined || eventData.location === null || (typeof eventData.location === 'string' && eventData.location.trim() === '')) {
+          delete eventData.location
+        }
         const newEventId = await createEvent(eventData)
         toast.success('Event created successfully!')
         router.push(`/admin?created=${newEventId}`)

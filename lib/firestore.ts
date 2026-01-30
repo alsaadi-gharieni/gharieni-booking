@@ -25,28 +25,53 @@ export async function createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): P
   // Optional string fields should be omitted if empty
   const optionalStringFields = ['location', 'companyLogo'];
   
+  // Build clean data object - explicitly exclude undefined/null/empty values
   const cleanData: any = {
     enabled: eventData.enabled !== undefined ? eventData.enabled : true,
     createdAt: Timestamp.now(),
   };
   
-  Object.keys(eventData).forEach(key => {
-    const value = (eventData as any)[key];
-    
+  // Use Object.entries for more reliable iteration
+  Object.entries(eventData).forEach(([key, value]) => {
     // Skip undefined and null
     if (value === undefined || value === null) {
       return;
     }
     
     // For optional string fields, skip empty strings
-    if (optionalStringFields.includes(key) && typeof value === 'string' && value.trim() === '') {
-      return;
+    if (optionalStringFields.includes(key)) {
+      if (typeof value !== 'string' || value.trim() === '') {
+        return; // Don't include this field at all
+      }
     }
     
-    cleanData[key] = value;
+    // Only add if value is not undefined
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
   });
   
-  const docRef = await addDoc(eventsCollection, cleanData);
+  // Final safety check - create a new object with only defined values
+  const finalData: any = {
+    enabled: cleanData.enabled,
+    createdAt: cleanData.createdAt,
+  };
+  
+  Object.keys(cleanData).forEach(key => {
+    const val = cleanData[key];
+    // Only include if it's not undefined, null, or empty string for optional fields
+    if (val !== undefined && val !== null) {
+      if (optionalStringFields.includes(key)) {
+        if (typeof val === 'string' && val.trim() !== '') {
+          finalData[key] = val;
+        }
+      } else {
+        finalData[key] = val;
+      }
+    }
+  });
+  
+  const docRef = await addDoc(eventsCollection, finalData);
   return docRef.id;
 }
 
